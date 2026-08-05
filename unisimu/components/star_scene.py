@@ -27,6 +27,8 @@ class StarScene(rx.NoSSRComponent):
 
     radius: rx.Var[float]
     color: rx.Var[str]
+    stage: rx.Var[str]
+    luminosity: rx.Var[float]
 
 
 star_scene = StarScene.create
