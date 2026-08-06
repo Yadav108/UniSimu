@@ -17,6 +17,9 @@ SPEED_OPTIONS = ["0.25", "1", "4", "16"]
 
 
 class SimState(rx.State):
+    # navigation: "shelf" (browse preset stars) or "detail" (single-star sim)
+    view: str = "shelf"
+
     # user-controlled
     mass_msun: float = 1.0
     speed_multiplier: float = 1.0
@@ -42,6 +45,18 @@ class SimState(rx.State):
     def set_mass(self, value: list[float]):
         self.mass_msun = max(MIN_MASS_MSUN, min(MAX_MASS_MSUN, float(value[0])))
         return SimState.reset_simulation
+
+    @rx.event
+    def select_preset(self, mass: float):
+        self.mass_msun = mass
+        self.view = "detail"
+        return SimState.reset_simulation
+
+    @rx.event
+    def back_to_shelf(self):
+        # tick_loop's existing `if not self.playing: return` stops it cleanly.
+        self.playing = False
+        self.view = "shelf"
 
     @rx.event
     def set_speed(self, value: str | list[str]):

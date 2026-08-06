@@ -17,13 +17,51 @@ function visualScale(radiusRsun) {
   return THREE.MathUtils.clamp(Math.log1p(Math.max(radiusRsun, 0)) * 0.6 + 0.3, 0.15, 3.5);
 }
 
-export function StarScene({ radius, color }) {
+// Real stars' rotation varies by orders of magnitude across their life --
+// most dramatically, a collapsed core conserves the angular momentum of a
+// much larger star, so neutron stars can spin hundreds of times per second
+// (pulsars). Values here are stylized, not literal, but the relative
+// ordering (giants slow, neutron stars fast) is physically motivated.
+const ROTATION_SPEED_BY_STAGE = {
+  protostar: 0.05,
+  main_sequence: 0.12,
+  red_giant: 0.04,
+  red_supergiant: 0.04,
+  supernova: 0.6,
+  planetary_nebula: 0.06,
+  white_dwarf: 0.3,
+  neutron_star: 6.0,
+  black_hole: 0.02,
+};
+const DEFAULT_ROTATION_SPEED = 0.1;
+
+const ACCRETION_DISK_STAGES = new Set(["neutron_star", "black_hole"]);
+
+function createGlowTexture() {
+  const size = 128;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  const gradient = ctx.createRadialGradient(
+    size / 2, size / 2, 0,
+    size / 2, size / 2, size / 2,
+  );
+  gradient.addColorStop(0, "rgba(255,255,255,1)");
+  gradient.addColorStop(0.35, "rgba(255,255,255,0.5)");
+  gradient.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+  return new THREE.CanvasTexture(canvas);
+}
+
+export function StarScene({ radius, color, stage, luminosity }) {
   const containerRef = useRef(null);
   // The render loop reads live prop values through this ref rather than
   // restarting the whole Three.js scene (renderer/camera/controls) on every
   // Python-driven prop update.
-  const latestRef = useRef({ radius, color });
-  latestRef.current = { radius, color };
+  const latestRef = useRef({ radius, color, stage, luminosity });
+  latestRef.current = { radius, color, stage, luminosity };
 
   useEffect(() => {
     const container = containerRef.current;
@@ -63,13 +101,72 @@ export function StarScene({ radius, color }) {
     pointLight.position.set(5, 5, 5);
     scene.add(pointLight);
 
+    // A plain colored sphere in an empty void gives no visual reference for
+    // camera orbit -- it looks identical from every angle, so dragging to
+    // rotate reads as "broken" even though the camera is moving. A static
+    // starfield provides parallax cues that make orbiting visible, and
+    // doubles as ambience.
+    const STAR_COUNT = 800;
+    const starPositions = new Float32Array(STAR_COUNT * 3);
+    for (let i = 0; i < STAR_COUNT; i++) {
+      const radius = 40 + Math.random() * 60;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(THREE.MathUtils.randFloatSpread(2));
+      starPositions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+      starPositions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+      starPositions[i * 3 + 2] = radius * Math.cos(phi);
+    }
+    const starGeometry = new THREE.BufferGeometry();
+    starGeometry.setAttribute("position", new THREE.BufferAttribute(starPositions, 3));
+    const starMaterial = new THREE.PointsMaterial({
+      color: 0xffffff,
+      size: 0.12,
+      sizeAttenuation: true,
+      transparent: true,
+      opacity: 0.8,
+    });
+    const starfield = new THREE.Points(starGeometry, starMaterial);
+    scene.add(starfield);
+
     const geometry = new THREE.SphereGeometry(1, 48, 48);
     const material = new THREE.MeshStandardMaterial({ toneMapped: false });
     const sphere = new THREE.Mesh(geometry, material);
     scene.add(sphere);
 
+    // Corona/glow halo: a camera-facing sprite with a soft radial-gradient
+    // texture, additively blended so it reads as light rather than a flat
+    // disc. Cheap "fake glow" technique, no post-processing bloom pass
+    // needed.
+    const glowTexture = createGlowTexture();
+    const glowMaterial = new THREE.SpriteMaterial({
+      map: glowTexture,
+      color: 0xffffff,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const glowSprite = new THREE.Sprite(glowMaterial);
+    scene.add(glowSprite);
+
+    // Accretion disk: only meaningful (and only shown) once the star has
+    // collapsed to a neutron star or black hole.
+    const diskGeometry = new THREE.RingGeometry(1.6, 3.4, 64);
+    const diskMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffaa55,
+      transparent: true,
+      opacity: 0,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const disk = new THREE.Mesh(diskGeometry, diskMaterial);
+    disk.rotation.x = Math.PI / 2.3;
+    scene.add(disk);
+
     let displayRadius = visualScale(latestRef.current.radius);
     const displayColor = new THREE.Color(latestRef.current.color);
+    let rotationSpeed = ROTATION_SPEED_BY_STAGE[latestRef.current.stage] ?? DEFAULT_ROTATION_SPEED;
+    let diskOpacity = ACCRETION_DISK_STAGES.has(latestRef.current.stage) ? 1 : 0;
     sphere.scale.setScalar(displayRadius);
     material.color.copy(displayColor);
 
@@ -92,15 +189,35 @@ export function StarScene({ radius, color }) {
       const delta = Math.min((now - lastTime) / 1000, 0.1);
       lastTime = now;
 
-      const targetRadius = visualScale(latestRef.current.radius);
-      const targetColor = new THREE.Color(latestRef.current.color);
+      const latest = latestRef.current;
+      const targetRadius = visualScale(latest.radius);
+      const targetColor = new THREE.Color(latest.color);
       const k = Math.min(1, delta * 2.5);
       displayRadius = THREE.MathUtils.lerp(displayRadius, targetRadius, k);
       displayColor.lerp(targetColor, k);
 
       sphere.scale.setScalar(displayRadius);
       material.color.copy(displayColor);
-      sphere.rotation.y += delta * 0.1;
+
+      const targetRotationSpeed = ROTATION_SPEED_BY_STAGE[latest.stage] ?? DEFAULT_ROTATION_SPEED;
+      // Spin-up/down over ~1s rather than snapping, so a stage change (e.g.
+      // collapsing into a fast-spinning neutron star) reads as acceleration.
+      rotationSpeed = THREE.MathUtils.lerp(rotationSpeed, targetRotationSpeed, Math.min(1, delta * 1.0));
+      sphere.rotation.y += delta * rotationSpeed;
+
+      // Glow scales with both size and (log-compressed) luminosity, so a
+      // small-but-blazing white dwarf still reads as bright.
+      const luminosityBoost = Math.log1p(Math.max(latest.luminosity ?? 0, 0)) * 0.5;
+      const glowScale = THREE.MathUtils.clamp(displayRadius * (2.2 + luminosityBoost), 1.0, 14);
+      glowSprite.scale.setScalar(glowScale);
+      glowSprite.material.color.copy(displayColor);
+
+      const targetDiskOpacity = ACCRETION_DISK_STAGES.has(latest.stage) ? 0.85 : 0;
+      diskOpacity = THREE.MathUtils.lerp(diskOpacity, targetDiskOpacity, Math.min(1, delta * 2.0));
+      disk.material.opacity = diskOpacity;
+      const diskScale = Math.max(displayRadius, 0.5);
+      disk.scale.setScalar(diskScale);
+      disk.rotation.z += delta * 1.5;
 
       if (!userInteracting) {
         const targetDistance = THREE.MathUtils.clamp(
@@ -130,6 +247,12 @@ export function StarScene({ radius, color }) {
       controls.dispose();
       geometry.dispose();
       material.dispose();
+      glowTexture.dispose();
+      glowMaterial.dispose();
+      diskGeometry.dispose();
+      diskMaterial.dispose();
+      starGeometry.dispose();
+      starMaterial.dispose();
       renderer.dispose();
       if (renderer.domElement.parentNode === container) {
         container.removeChild(renderer.domElement);

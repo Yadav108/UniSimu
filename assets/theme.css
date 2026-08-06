@@ -1,0 +1,14 @@
+/* Observatory-logbook palette, approved via the theme-study mockup.
+   The app's Radix theme is locked to dark appearance (rxconfig.py), so
+   these are the dark-mode values only -- no light-mode branch needed. */
+:root {
+  --uni-ground: #14110d;
+  --uni-panel: #1e1a14;
+  --uni-panel-raised: #262019;
+  --uni-brass: #c9a34e;
+  --uni-brass-dim: #6b5a2e;
+  --uni-brass-bright: #e0bd6e;
+  --uni-parchment: #e8e1d3;
+  --uni-ink-muted: #9c9284;
+  --uni-hairline: #3a3226;
+}

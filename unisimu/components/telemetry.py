@@ -10,25 +10,14 @@ Nielsen mapping:
 
 import reflex as rx
 
+from unisimu.copy import STAGE_LABELS
 from unisimu.state import SimState
-
-_STAGE_LABELS = {
-    "protostar": "Protostar",
-    "main_sequence": "Main Sequence",
-    "red_giant": "Red Giant",
-    "red_supergiant": "Red Supergiant",
-    "supernova": "Supernova",
-    "planetary_nebula": "Planetary Nebula",
-    "white_dwarf": "White Dwarf",
-    "neutron_star": "Neutron Star",
-    "black_hole": "Black Hole",
-}
 
 
 def _stage_label() -> rx.Component:
     return rx.match(
         SimState.stage,
-        *[(key, label) for key, label in _STAGE_LABELS.items()],
+        *[(key, label) for key, label in STAGE_LABELS.items()],
         SimState.stage,
     )
 
