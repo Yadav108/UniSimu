@@ -6,6 +6,7 @@ import asyncio
 import reflex as rx
 from reflex.event import KeyInputInfo
 
+from unisimu import hr_geometry
 from unisimu.copy import STAGE_CAPTIONS
 from unisimu.physics.stellar import TERMINAL_STAGES, StellarSnapshot, evolve, stage_track
 
@@ -195,3 +196,19 @@ class SimState(rx.State):
     def current_stage_index(self) -> int:
         track = stage_track(self.mass_msun)
         return track.index(self.stage) if self.stage in track else 0
+
+    @rx.var(cache=True)
+    def hr_track_svg(self) -> str:
+        return hr_geometry.track_polyline(self.mass_msun)
+
+    @rx.var(cache=True)
+    def hr_marker_xy(self) -> list[float]:
+        return hr_geometry.marker_position(self.mass_msun, self.temperature_k, self.luminosity_lsun)
+
+    @rx.var(cache=True)
+    def hr_t_ticks(self) -> list[tuple[float, str]]:
+        return hr_geometry.temperature_ticks(self.mass_msun)
+
+    @rx.var(cache=True)
+    def hr_l_ticks(self) -> list[tuple[float, str]]:
+        return hr_geometry.luminosity_ticks(self.mass_msun)

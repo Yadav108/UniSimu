@@ -159,3 +159,39 @@ def evolve(mass_msun: float, age_years: float) -> StellarSnapshot:
     temperature = 15000.0
     return StellarSnapshot("white_dwarf", 0.01, temperature, 0.001,
                             kelvin_to_hex(temperature), 1.0)
+
+
+def evolution_track(mass_msun: float, arc_samples: int = 26) -> list[StellarSnapshot]:
+    """Sample evolve() at closely-spaced ages spanning this star's full
+    life, for tracing its path on an H-R diagram.
+
+    Each phase's (T, L) formula is linear in age-within-phase (see evolve()
+    above), so this doesn't re-derive its internal timing -- it just samples
+    `arc_samples` ages across each phase where the star actually moves
+    (protostar, post-main-sequence, terminal flash) and a single age for
+    phases that are physically static in this model (main sequence, the
+    final collapsed remnant).
+    """
+    ms_lifetime = main_sequence_lifetime_years(mass_msun)
+    post_ms_duration = ms_lifetime * POST_MS_FRACTION
+    ms_start = FORMATION_YEARS
+    post_ms_start = ms_start + ms_lifetime
+    terminal_start = post_ms_start + post_ms_duration
+    remnant_start = terminal_start + TERMINAL_FLASH_YEARS
+    # evolve()'s terminal branch uses a strict `<`, so an arc sampled all
+    # the way to remnant_start would land ON the remnant for its last
+    # point -- stop just short so the flash's own end (frac ~= 1) is what
+    # gets sampled, and the remnant stays a single, distinct final point.
+    terminal_end = terminal_start + TERMINAL_FLASH_YEARS * (1 - 1e-9)
+
+    def arc(start: float, end: float) -> list[float]:
+        return [start + (end - start) * i / (arc_samples - 1) for i in range(arc_samples)]
+
+    ages = [
+        *arc(0.0, ms_start),
+        ms_start,
+        *arc(post_ms_start, terminal_start),
+        *arc(terminal_start, terminal_end),
+        remnant_start,
+    ]
+    return [evolve(mass_msun, age) for age in ages]

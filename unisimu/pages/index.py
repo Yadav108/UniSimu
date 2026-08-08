@@ -7,6 +7,7 @@ specific Nielsen-heuristic mapping."""
 import reflex as rx
 
 from unisimu.components.controls import controls
+from unisimu.components.hr_diagram import hr_diagram
 from unisimu.components.legend import legend
 from unisimu.components.shelf import shelf_page
 from unisimu.components.telemetry import status_bar, telemetry_readout
@@ -40,6 +41,8 @@ def detail_page() -> rx.Component:
                     controls(),
                     rx.separator(size="4"),
                     telemetry_readout(),
+                    rx.separator(size="4"),
+                    hr_diagram(),
                     rx.separator(size="4"),
                     legend(),
                     spacing="4",
