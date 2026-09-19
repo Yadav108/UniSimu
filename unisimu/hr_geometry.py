@@ -6,6 +6,7 @@ stays legible across the full 0.1-150 M_sun range this app supports."""
 import math
 from functools import lru_cache
 
+from unisimu.formatting import SUPERSCRIPT
 from unisimu.physics.stellar import evolution_track
 
 VIEW_WIDTH = 340.0
@@ -26,8 +27,6 @@ _T_TICK_CANDIDATES = [
     15000, 20000, 30000, 50000, 70000, 100000, 150000,
 ]
 _L_TICK_CANDIDATES = [10.0**n for n in range(-6, 9)]
-
-_SUPERSCRIPT = str.maketrans("0123456789-", "⁰¹²³⁴⁵⁶⁷⁸⁹⁻")
 
 
 def _clamp(value: float, lo: float, hi: float) -> float:
@@ -93,7 +92,7 @@ def _axis_ticks(candidates: list[float], domain: tuple[float, float], max_ticks:
 
 def _luminosity_label(value: float) -> str:
     n = round(math.log10(value))
-    return "1" if n == 0 else f"10{str(n).translate(_SUPERSCRIPT)}"
+    return "1" if n == 0 else f"10{str(n).translate(SUPERSCRIPT)}"
 
 
 def track_polyline(mass_msun: float) -> str:

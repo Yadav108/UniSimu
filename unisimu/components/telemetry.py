@@ -55,7 +55,7 @@ def telemetry_readout() -> rx.Component:
         rx.hstack(
             rx.text("Radius", size="2", color_scheme="gray"),
             rx.spacer(),
-            rx.text(SimState.radius_display, " R☉", size="2"),
+            rx.text(SimState.radius_display, size="2"),
             width="100%",
         ),
         rx.progress(value=SimState.stage_progress_pct, width="100%"),

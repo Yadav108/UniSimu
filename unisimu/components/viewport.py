@@ -14,10 +14,15 @@ def viewport() -> rx.Component:
             color=SimState.color_hex,
             stage=SimState.stage,
             luminosity=SimState.luminosity_lsun,
+            progress=SimState.stage_progress,
         ),
         width="100%",
         height="100%",
         min_height="50vh",
+        # Matches the scene's own clear color (star_scene.jsx SPACE_COLOR) so
+        # the canvas edge is invisible before/while WebGL initialises.
+        background_color="#03040a",
+        border="1px solid var(--uni-hairline)",
         border_radius="var(--radius-4)",
         overflow="hidden",
     )

@@ -12,13 +12,19 @@ hole, compressed into a few minutes of simulated time.
 - **Preset shelf** — browse six real, recognizable stars (Proxima Centauri, the Sun,
   Sirius A, Betelgeuse, Rigel, Eta Carinae) spanning all three terminal fates, or dial in
   any mass from 0.1 to 150 solar masses.
-- **3D star viewport** — a live Three.js scene with a glowing corona, starfield
-  background, physically-motivated rotation speed per stage, an accretion disk for
-  collapsed remnants, and camera auto-zoom that frames each stage as the star changes
-  size.
-- **Server-driven simulation** — a background tick loop advances simulated time (adjustable
-  0.25x–16x) and streams the star's radius, temperature, luminosity, and color to the
-  client every tick, derived from a deterministic mass-luminosity/lifetime model.
+- **3D star viewport** — a live Three.js scene with a self-luminous star (limb darkening,
+  convective granulation, starspots, streaming corona), HDR bloom, and a round, twinkling
+  starfield with a Milky-Way band. Each life stage has its own look:
+  a dusty accretion disk and jets for the protostar, slow-pulsating blotchy giants, a
+  collapse → flash → shockwave → ejecta supernova, an expanding planetary-nebula shell, a
+  sweeping pulsar for neutron stars, and a lensed, Doppler-brightened disk around black
+  holes. Camera auto-zoom frames each stage and keeps whatever zoom you choose.
+- **Cinematic pacing** — every star's life plays in about 50 seconds at 1x, whatever its
+  real timescales (a red dwarf lives trillions of years; a supernova lasts weeks), so each
+  stage gets real screen time. Speed is adjustable 0.25x–16x.
+- **Server-driven simulation** — a background tick loop advances that cinematic clock and
+  streams the star's radius, temperature, luminosity, and color to the client every tick,
+  derived from a deterministic mass-luminosity/lifetime model.
 - **Stage-transition toasts** — a short explanation pops up each time the star crosses
   into a new life stage (e.g. "the core runs out of hydrogen...").
 - **Timeline + telemetry** — a progress track showing the star's full stage sequence (which
@@ -59,8 +65,9 @@ Then open **http://localhost:3000**.
 pytest tests/ -q
 ```
 
-Tests cover the blackbody color model, the stellar evolution stage/lifetime math, and
-the preset shelf's mass-to-fate assignments.
+Tests cover the blackbody color model, the stellar evolution stage/lifetime math, the
+cinematic pacing (every stage is visible even at 16x), the H-R geometry, number
+formatting, and the preset shelf's mass-to-fate assignments.
 
 ## Project structure
 
@@ -68,7 +75,8 @@ the preset shelf's mass-to-fate assignments.
 unisimu/
   physics/
     blackbody.py       # temperature (K) -> RGB hex color
-    stellar.py          # evolve(mass, age) -> StellarSnapshot; stage/lifetime model
+    stellar.py          # evolve(mass, age) -> StellarSnapshot; stage/lifetime model,
+                        # plus cinematic_age_years() (screen-time -> simulated age)
   components/
     star_scene.py        # Python wrapper around the JS Three.js component
     viewport.py           # 3D viewport layout
@@ -80,8 +88,9 @@ unisimu/
   pages/index.py          # routes between the shelf and the detail view
   presets.py                # named real-star presets (mass, blurb, spectral class)
   copy.py                     # UI copy: stage labels, transition captions
+  formatting.py                 # readable numbers (2.9×10⁸, km vs R☉) for readouts
   state.py                      # SimState: user controls + background simulation loop
-assets/star_scene.jsx    # the Three.js scene (scene setup, glow, disk, camera zoom)
+assets/star_scene.jsx    # the Three.js scene (GLSL shaders, bloom, per-stage effects, camera)
 tests/                     # pytest suite for the physics model and presets
 ```
 
@@ -92,16 +101,23 @@ model — not a research-grade stellar-structure integration, but enough to driv
 plausible, mass-dependent visualization using standard scaling relations:
 
 - Mass-luminosity and main-sequence lifetime relations set how bright and how long-lived
-  a star of a given mass is.
+  a star of a given mass is; main-sequence temperature follows an observed
+  spectral-type sequence (M dwarfs ~3,000 K up to O stars ~50,000 K).
+- Giants cool to ~3,000 K (red) as they swell: a Sun-like star reaches ~100 R☉, and
+  Betelgeuse-mass supergiants reach ~700 R☉.
 - Stars below 8 M☉ swell into a red giant, shed their outer layers as a planetary nebula,
   and settle into a white dwarf.
 - Stars between 8–20 M☉ become red supergiants, go supernova, and collapse into a
   neutron star.
 - Stars at or above 20 M☉ follow the same path but collapse into a black hole instead.
 
-`SimState` (in `unisimu/state.py`) drives an async background loop that advances
-simulated years each tick and pushes the resulting snapshot (stage, radius, temperature,
-luminosity, color) to the frontend, which the Three.js scene animates toward smoothly.
+Real lifetimes span twelve orders of magnitude, so a linear clock would blow straight past
+the dramatic phases. Instead `phase_schedule()` gives each phase (protostar, main sequence,
+giant, supernova/planetary nebula) a fixed on-screen duration and `cinematic_age_years()`
+maps screen time onto simulated age within it. `SimState` (in `unisimu/state.py`) drives an
+async background loop that advances that clock by wall-time × speed each tick and pushes the
+resulting snapshot (stage, progress through the stage, radius, temperature, luminosity,
+color) to the frontend, which the Three.js scene animates toward smoothly.
 
 ## Notes
 

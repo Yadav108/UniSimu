@@ -2,16 +2,27 @@
 simulation loop that streams a star's evolving properties to the client."""
 
 import asyncio
+import time
 
 import reflex as rx
 from reflex.event import KeyInputInfo
 
 from unisimu import hr_geometry
 from unisimu.copy import STAGE_CAPTIONS
-from unisimu.physics.stellar import TERMINAL_STAGES, StellarSnapshot, evolve, stage_track
+from unisimu.formatting import format_scientific
+from unisimu.physics.stellar import (
+    SUN_RADIUS_KM,
+    TERMINAL_STAGES,
+    StellarSnapshot,
+    cinematic_age_years,
+    evolve,
+    stage_track,
+)
 
 TICK_HZ = 20
-SIM_YEARS_PER_SECOND_AT_1X = 2_000_000
+# A stalled event loop (tab in the background, laptop asleep) shouldn't make
+# the clock lurch forward and skip whole stages when it wakes up.
+MAX_TICK_SECONDS = 0.25
 MIN_MASS_MSUN = 0.1
 MAX_MASS_MSUN = 150.0
 SPEED_OPTIONS = ["0.25", "1", "4", "16"]
@@ -26,7 +37,8 @@ class SimState(rx.State):
     speed_multiplier: float = 1.0
     playing: bool = False
 
-    # simulation clock (authoritative)
+    # simulated age in years, derived each tick from the cinematic clock
+    # (`_screen_seconds`, below) -- see physics.stellar.cinematic_age_years
     age_years: float = 0.0
 
     # display vars, set atomically once per tick from evolve()
@@ -41,6 +53,8 @@ class SimState(rx.State):
     # backend-only loop guards, never sent to the client
     _run_id: int = 0
     _n_loops_running: int = 0
+    # cinematic clock: seconds of screen time played at 1x-equivalent speed
+    _screen_seconds: float = 0.0
 
     @rx.event
     def set_mass(self, value: list[float]):
@@ -97,6 +111,7 @@ class SimState(rx.State):
     def reset_simulation(self):
         self.playing = False
         self.age_years = 0.0
+        self._screen_seconds = 0.0
         self._run_id += 1
         self._apply_snapshot(evolve(self.mass_msun, 0.0))
         self.event_flag = ""
@@ -116,17 +131,20 @@ class SimState(rx.State):
                 return
             self._n_loops_running += 1
             my_run_id = self._run_id
+        last_tick = time.monotonic()
         try:
             while True:
                 await asyncio.sleep(1 / TICK_HZ)
+                now = time.monotonic()
+                elapsed = min(now - last_tick, MAX_TICK_SECONDS)
+                last_tick = now
                 caption = None
                 reached_terminal = False
                 async with self:
                     if my_run_id != self._run_id or not self.playing:
                         return
-                    self.age_years += (
-                        self.speed_multiplier * SIM_YEARS_PER_SECOND_AT_1X / TICK_HZ
-                    )
+                    self._screen_seconds += self.speed_multiplier * elapsed
+                    self.age_years = cinematic_age_years(self.mass_msun, self._screen_seconds)
                     prev_stage = self.stage
                     snap = evolve(self.mass_msun, self.age_years)
                     self._apply_snapshot(snap)
@@ -170,15 +188,24 @@ class SimState(rx.State):
 
     @rx.var(cache=True)
     def temperature_display(self) -> str:
+        if self.temperature_k < 1:
+            return "≈ 0"
+        if self.temperature_k >= 1e6:
+            return format_scientific(self.temperature_k)
         return f"{self.temperature_k:,.0f}"
 
     @rx.var(cache=True)
     def luminosity_display(self) -> str:
-        return f"{self.luminosity_lsun:.4g}"
+        return format_scientific(self.luminosity_lsun)
 
     @rx.var(cache=True)
     def radius_display(self) -> str:
-        return f"{self.radius_rsun:.4g}"
+        """Solar radii for stars; kilometres once the object is compact enough
+        (white dwarf and below) that R☉ would read as `1.7e-05`."""
+        if self.radius_rsun >= 0.01:
+            return f"{format_scientific(self.radius_rsun)} R☉"
+        km = self.radius_rsun * SUN_RADIUS_KM
+        return f"{km:,.1f} km"
 
     @rx.var(cache=True)
     def speed_display(self) -> str:
