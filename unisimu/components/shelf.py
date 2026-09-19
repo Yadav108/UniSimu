@@ -19,9 +19,7 @@ from unisimu.physics.blackbody import kelvin_to_hex
 from unisimu.physics.stellar import main_sequence_temperature_k
 from unisimu.presets import PRESETS
 from unisimu.state import SimState
-
-_SERIF = "Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Times New Roman', serif"
-_MONO = "'SF Mono', Consolas, Menlo, monospace"
+from unisimu.theme import MONO, SERIF
 
 
 def _preset_card(preset) -> rx.Component:
@@ -45,13 +43,13 @@ def _preset_card(preset) -> rx.Component:
                         size="2",
                         weight="bold",
                         color="var(--uni-brass)",
-                        font_family=_MONO,
+                        font_family=MONO,
                     ),
                     rx.text(
                         f"{preset.mass_msun:g} M☉",
                         size="1",
                         color="var(--uni-ink-muted)",
-                        font_family=_MONO,
+                        font_family=MONO,
                     ),
                     spacing="0",
                     align="end",
@@ -63,7 +61,7 @@ def _preset_card(preset) -> rx.Component:
             rx.heading(
                 preset.name,
                 size="5",
-                font_family=_SERIF,
+                font_family=SERIF,
                 weight="regular",
                 color="var(--uni-parchment)",
             ),
@@ -121,7 +119,7 @@ def shelf_page() -> rx.Component:
                         "Uni",
                         rx.el.em("Simu", color="var(--uni-brass-bright)", font_style="italic"),
                         size="8",
-                        font_family=_SERIF,
+                        font_family=SERIF,
                         weight="regular",
                         color="var(--uni-parchment)",
                     ),

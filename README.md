@@ -25,8 +25,9 @@ hole, compressed into a few minutes of simulated time.
 - **Server-driven simulation** — a background tick loop advances that cinematic clock and
   streams the star's radius, temperature, luminosity, and color to the client every tick,
   derived from a deterministic mass-luminosity/lifetime model.
-- **Stage-transition toasts** — a short explanation pops up each time the star crosses
-  into a new life stage (e.g. "the core runs out of hydrogen...").
+- **Stage captions** — a short explanation fades in over the viewport each time the star
+  crosses into a new life stage (e.g. "the core runs out of hydrogen..."), and a star's
+  final state keeps its caption until Reset.
 - **Timeline + telemetry** — a progress track showing the star's full stage sequence (which
   differs by mass) and a live instrument readout of its current physical properties.
 - **Keyboard shortcuts** — `Space` to play/pause, `R` to reset.
@@ -66,7 +67,7 @@ pytest tests/ -q
 ```
 
 Tests cover the blackbody color model, the stellar evolution stage/lifetime math, the
-cinematic pacing (every stage is visible even at 16x), the H-R geometry, number
+cinematic pacing (every stage is visible even at 16x), the UI copy tables, the H-R geometry, number
 formatting, and the preset shelf's mass-to-fate assignments.
 
 ## Project structure
@@ -88,6 +89,7 @@ unisimu/
   pages/index.py          # routes between the shelf and the detail view
   presets.py                # named real-star presets (mass, blurb, spectral class)
   copy.py                     # UI copy: stage labels, transition captions
+  theme.py                      # shared font stacks + stamp style (colors: assets/theme.css)
   formatting.py                 # readable numbers (2.9×10⁸, km vs R☉) for readouts
   state.py                      # SimState: user controls + background simulation loop
 assets/star_scene.jsx    # the Three.js scene (GLSL shaders, bloom, per-stage effects, camera)
