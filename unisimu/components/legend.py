@@ -87,5 +87,6 @@ def legend() -> rx.Component:
                 align="start",
             ),
             max_width="24em",
+            class_name="uni-detail",
         ),
     )

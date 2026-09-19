@@ -11,4 +11,46 @@
   --uni-parchment: #e8e1d3;
   --uni-ink-muted: #9c9284;
   --uni-hairline: #3a3226;
+  /* Keep in sync with SERIF / MONO in unisimu/theme.py. */
+  --uni-serif: Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Times New Roman', serif;
+  --uni-mono: 'SF Mono', Consolas, Menlo, monospace;
+}
+
+/* The detail page and its popovers use Radix components (sliders, headings,
+   segmented controls) that carry their own typography. Scoping the book-serif
+   heading style to `.uni-detail` themes them without touching each component. */
+.uni-detail .rt-Heading {
+  font-family: var(--uni-serif);
+  font-weight: 400;
+  color: var(--uni-parchment);
+}
+
+/* Stage-transition caption over the viewport. The animation's length must
+   match CAPTION_SECONDS in unisimu/state.py (the server clears the text just
+   after the fade finishes). `--stay` is for a star's final state, which
+   remains until Reset. */
+@keyframes uni-caption-life {
+  0% { opacity: 0; transform: translateY(8px); }
+  6% { opacity: 1; transform: none; }
+  90% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: none; }
+}
+@keyframes uni-caption-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.uni-caption { animation: uni-caption-life 8s ease-out forwards; }
+.uni-caption--stay { animation: uni-caption-in 0.6s ease-out forwards; }
+@media (prefers-reduced-motion: reduce) {
+  .uni-caption, .uni-caption--stay { animation: none; }
+}
+
+/* Gentle pulse on the "playing" indicator dot. */
+@keyframes uni-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+.uni-pulse { animation: uni-pulse 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .uni-pulse { animation: none; }
 }

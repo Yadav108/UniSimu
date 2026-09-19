@@ -8,7 +8,7 @@ import reflex as rx
 from reflex.event import KeyInputInfo
 
 from unisimu import hr_geometry
-from unisimu.copy import STAGE_CAPTIONS
+from unisimu.copy import STAGE_CAPTIONS, STAGE_LABELS
 from unisimu.formatting import format_scientific
 from unisimu.physics.stellar import (
     SUN_RADIUS_KM,
@@ -23,6 +23,9 @@ TICK_HZ = 20
 # A stalled event loop (tab in the background, laptop asleep) shouldn't make
 # the clock lurch forward and skip whole stages when it wakes up.
 MAX_TICK_SECONDS = 0.25
+# How long a stage-transition caption stays up. Slightly longer than the 8s
+# fade animation in assets/theme.css so the text is never cut off mid-fade.
+CAPTION_SECONDS = 8.5
 MIN_MASS_MSUN = 0.1
 MAX_MASS_MSUN = 150.0
 SPEED_OPTIONS = ["0.25", "1", "4", "16"]
@@ -50,11 +53,18 @@ class SimState(rx.State):
     stage_progress: float = 0.0
     event_flag: str = ""
 
+    # caption shown over the viewport when the star enters a new stage
+    caption_title: str = ""
+    caption_text: str = ""
+    # a star's final state (white dwarf, ...) keeps its caption until Reset
+    caption_persistent: bool = False
+
     # backend-only loop guards, never sent to the client
     _run_id: int = 0
     _n_loops_running: int = 0
     # cinematic clock: seconds of screen time played at 1x-equivalent speed
     _screen_seconds: float = 0.0
+    _caption_until: float = 0.0
 
     @rx.event
     def set_mass(self, value: list[float]):
@@ -72,6 +82,7 @@ class SimState(rx.State):
         # tick_loop's existing `if not self.playing: return` stops it cleanly.
         self.playing = False
         self.view = "shelf"
+        self._clear_caption()
 
     @rx.event
     def set_speed(self, value: str | list[str]):
@@ -115,6 +126,18 @@ class SimState(rx.State):
         self._run_id += 1
         self._apply_snapshot(evolve(self.mass_msun, 0.0))
         self.event_flag = ""
+        self._clear_caption()
+
+    def _show_caption(self, stage: str, text: str) -> None:
+        self.caption_title = STAGE_LABELS.get(stage, stage)
+        self.caption_text = text
+        self.caption_persistent = stage in TERMINAL_STAGES
+        self._caption_until = time.monotonic() + CAPTION_SECONDS
+
+    def _clear_caption(self) -> None:
+        self.caption_title = ""
+        self.caption_text = ""
+        self.caption_persistent = False
 
     def _apply_snapshot(self, snap: StellarSnapshot) -> None:
         self.stage = snap.stage
@@ -138,7 +161,6 @@ class SimState(rx.State):
                 now = time.monotonic()
                 elapsed = min(now - last_tick, MAX_TICK_SECONDS)
                 last_tick = now
-                caption = None
                 reached_terminal = False
                 async with self:
                     if my_run_id != self._run_id or not self.playing:
@@ -150,17 +172,19 @@ class SimState(rx.State):
                     self._apply_snapshot(snap)
                     if snap.stage != prev_stage:
                         self.event_flag = f"entered_{snap.stage}"
-                        caption = STAGE_CAPTIONS.get(snap.stage)
+                        if caption := STAGE_CAPTIONS.get(snap.stage):
+                            self._show_caption(snap.stage, caption)
                     else:
                         self.event_flag = ""
+                    if (
+                        self.caption_text
+                        and not self.caption_persistent
+                        and now > self._caption_until
+                    ):
+                        self._clear_caption()
                     if snap.stage in TERMINAL_STAGES:
                         self.playing = False
                         reached_terminal = True
-                # Yield the toast (and return) outside `async with self` so the
-                # state lock is released before handing control back to the
-                # event loop/frontend.
-                if caption:
-                    yield rx.toast.info(caption, duration=6000, close_button=True)
                 if reached_terminal:
                     return
         finally:
