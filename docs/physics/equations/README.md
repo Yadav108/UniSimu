@@ -17,7 +17,7 @@ Anything typed from memory or taken from the brief without being opened is marke
 | [07-tracks-remnants.md](07-tracks-remnants.md) | MIST, red-dwarf evolution, Mestel WD cooling | 7 |
 
 ## Corrections this research made to the build prompt
-1. **Test count:** the repo has **43** tests, not 122.
+1. **Test count:** on the `realism/phase-0-audit` branch, `pytest tests/ -q` passes **128** tests (43 test functions, expanded by parametrize). The brief said 122, which was the count at f1eb370.
 2. **Limb darkening:** Howarth arXiv:1511.02029 is *Reeve & Howarth*, and covers **hot stars only (15–55 kK)**. Cool stars need Claret & Bloemen 2011 (VizieR J/A+A/529/A75; coverage still unverified).
 3. **Planetary nebulae:** the true expansion speed is about **42 km/s** and the visibility time about **21 000 ± 5000 yr** (Jacob et al. 2013). The brief's 20–30 km/s and 10⁴ yr are the older spectroscopic values.
 4. **Issue #11 threshold:** the "no red giant" mass is **0.25 M☉** (Laughlin, Bodenheimer & Adams 1997, via Adams et al. 2004). The ~0.35 M☉ figure in the brief is the *fully convective* limit, which is a different thing.
