@@ -1,0 +1,2 @@
+# Development-only tools (not needed to run the app).
+playwright==1.63.0

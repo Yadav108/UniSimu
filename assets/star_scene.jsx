@@ -90,6 +90,37 @@ const SUPERNOVA_PALETTE = [new THREE.Color(1.0, 0.42, 0.12), new THREE.Color(0.2
 const HORIZON_RADIUS = 0.6; // stylized: a real one is ~1e-5 Rsun, invisible
 const NEUTRON_STAR_RADIUS = 0.075;
 
+// Physical render mode: these are camera settings, not physics. The physics
+// (surface colour as linear sRGB, surface luminance relative to a 5772 K
+// surface) arrives from Python -- see unisimu/physics/blackbody.py and
+// docs/physics/01-radiometry.md.
+const PHYSICAL_FIXED_EXPOSURE = 1.0; // fixed: a 5772 K surface renders at 1.0 before tone mapping
+const PHYSICAL_AUTO_LEVEL = 1.0; // auto: any star's surface renders at this level
+
+// Optional test mode, e.g. ?unisimuSeed=1&unisimuFreeze=10 -- seeds every
+// random choice and pins the animation clock so screenshots are repeatable.
+// Without those URL parameters nothing changes.
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function readTestMode() {
+  const params = new URLSearchParams(window.location.search);
+  const seed = params.get("unisimuSeed");
+  const freeze = params.get("unisimuFreeze");
+  return {
+    random: seed === null ? Math.random : mulberry32(Number(seed) | 0),
+    frozenTime: freeze === null ? null : Number(freeze),
+  };
+}
+let rand = Math.random;
+
 // ---------------------------------------------------------------- GLSL ---
 
 // Hash-based value noise + fbm. Cheap, no textures, and seamless when
@@ -417,7 +448,7 @@ function makeNebulaMaterial(rim, clump) {
     side: THREE.DoubleSide,
     uniforms: {
       uColorA: color(1, 1, 1), uColorB: color(1, 1, 1), uTime: { value: 0 }, uOpacity: { value: 0 },
-      uSeed: { value: Math.random() * 20 }, uRim: { value: rim }, uClump: { value: clump }, uBase: { value: 0.1 },
+      uSeed: { value: rand() * 20 }, uRim: { value: rim }, uClump: { value: clump }, uBase: { value: 0.1 },
     },
   });
 }
@@ -460,7 +491,7 @@ function makeStarfield(pixelRatio) {
   ];
   const STAR_COLOR_WEIGHTS = [0.14, 0.24, 0.3, 0.2, 0.12];
   const pickColor = () => {
-    let x = Math.random();
+    let x = rand();
     for (let i = 0; i < STAR_COLORS.length; i++) {
       x -= STAR_COLOR_WEIGHTS[i];
       if (x <= 0) return STAR_COLORS[i];
@@ -485,31 +516,31 @@ function makeStarfield(pixelRatio) {
   for (let i = 0; i < total; i++) {
     const inBand = i >= FIELD;
     if (inBand) {
-      const angle = Math.random() * Math.PI * 2;
-      const lift = (Math.random() + Math.random() + Math.random() - 1.5) * 0.28;
+      const angle = rand() * Math.PI * 2;
+      const lift = (rand() + rand() + rand() - 1.5) * 0.28;
       dir.copy(bandU).multiplyScalar(Math.cos(angle)).addScaledVector(bandV, Math.sin(angle));
       dir.addScaledVector(bandNormal, lift).normalize();
     } else {
-      dir.set(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1);
+      dir.set(rand() * 2 - 1, rand() * 2 - 1, rand() * 2 - 1);
       if (dir.lengthSq() < 1e-4) dir.set(0, 1, 0);
       dir.normalize();
     }
-    const radius = 70 + Math.random() * 30;
+    const radius = 70 + rand() * 30;
     positions.set([dir.x * radius, dir.y * radius, dir.z * radius], i * 3);
 
     if (inBand) {
-      const tint = Math.random();
-      const dim = 0.1 + Math.random() * 0.22;
+      const tint = rand();
+      const dim = 0.1 + rand() * 0.22;
       colors.set([(0.7 + tint * 0.3) * dim, (0.72 + (1 - tint) * 0.1) * dim, (1.0 - tint * 0.25) * dim], i * 3);
-      sizes[i] = 1.1 + Math.random() * 0.7;
+      sizes[i] = 1.1 + rand() * 0.7;
     } else {
       const [r, g, b] = pickColor();
       // Power-law magnitudes: many faint stars, a handful of bright ones.
-      const bright = 0.35 + Math.pow(Math.random(), 3.0) * 1.9;
+      const bright = 0.35 + Math.pow(rand(), 3.0) * 1.9;
       colors.set([r * bright, g * bright, b * bright], i * 3);
-      sizes[i] = 1.4 + Math.pow(Math.random(), 4.0) * 3.4;
+      sizes[i] = 1.4 + Math.pow(rand(), 4.0) * 3.4;
     }
-    phases[i] = Math.random();
+    phases[i] = rand();
   }
 
   const geometry = new THREE.BufferGeometry();
@@ -531,13 +562,13 @@ function makeEjecta(pixelRatio) {
   const seeds = new Float32Array(COUNT);
   const dir = new THREE.Vector3();
   for (let i = 0; i < COUNT; i++) {
-    dir.set(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1);
+    dir.set(rand() * 2 - 1, rand() * 2 - 1, rand() * 2 - 1);
     if (dir.lengthSq() < 1e-4) dir.set(1, 0, 0);
     dir.normalize();
     // Speeds skewed slow-heavy, with a fast tail forming the leading edge.
-    const speed = 0.12 + Math.pow(Math.random(), 1.6) * 0.88;
+    const speed = 0.12 + Math.pow(rand(), 1.6) * 0.88;
     positions.set([dir.x * speed, dir.y * speed, dir.z * speed], i * 3);
-    seeds[i] = Math.random();
+    seeds[i] = rand();
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
@@ -570,6 +601,9 @@ function mountStarScene(container) {
     return;
   }
   mountedContainer = container;
+  const testMode = readTestMode();
+  rand = testMode.random;
+  const frozen = testMode.frozenTime !== null;
   // Matches SimState's initial values (state.py) -- covers the brief window
   // between this ref firing and StarScene()'s next render pushing real props.
   container._uniSimuLatest = container._uniSimuLatest || {
@@ -619,7 +653,7 @@ function mountStarScene(container) {
   controls.dampingFactor = 0.07;
   controls.minDistance = 2;
   controls.maxDistance = 26;
-  controls.autoRotate = true;
+  controls.autoRotate = !frozen;
   controls.autoRotateSpeed = 0.35;
 
   // Auto-zoom: camera distance follows whatever the current stage needs
@@ -637,7 +671,7 @@ function mountStarScene(container) {
   controls.addEventListener("end", () => {
     userInteracting = false;
     lastInteractionEnd = performance.now();
-    controls.autoRotate = true;
+    controls.autoRotate = !frozen;
   });
 
   // ------------------------------------------------------------- scene ---
@@ -823,7 +857,9 @@ function mountStarScene(container) {
     rafId = requestAnimationFrame(animate);
     const delta = Math.min((now - lastTime) / 1000, 0.1);
     lastTime = now;
-    elapsed += delta;
+    elapsed = frozen ? testMode.frozenTime : elapsed + delta;
+    // free-running motion (spin, drift, slow growth) stops in test mode
+    const motion = frozen ? 0 : 1;
     for (const u of timeUniforms) u.value = elapsed;
 
     const latest = container._uniSimuLatest;
@@ -842,6 +878,19 @@ function mountStarScene(container) {
     let targetIntensity = look.intensity;
     if (stage === "protostar") targetIntensity = 0.55 + 0.45 * p;
 
+    // Physical mode: brightness is the surface luminance from Python times a
+    // camera exposure, not a per-stage constant. Tone mapping happens once,
+    // in the OutputPass (Khronos PBR Neutral, chosen for keeping hues).
+    const physical = latest.renderMode === "physical" && Array.isArray(latest.surfaceColor);
+    const toneMapping = physical ? THREE.NeutralToneMapping : THREE.NoToneMapping;
+    if (renderer.toneMapping !== toneMapping) renderer.toneMapping = toneMapping;
+    if (physical) {
+      const surfaceLuminance = latest.surfaceLuminance ?? 0;
+      targetIntensity = latest.exposureMode === "fixed"
+        ? surfaceLuminance * PHYSICAL_FIXED_EXPOSURE
+        : (surfaceLuminance > 0 ? PHYSICAL_AUTO_LEVEL : 0);
+    }
+
     if (stage !== previousStage) {
       enterStage(stage, targetRadius);
       previousStage = stage;
@@ -854,11 +903,11 @@ function mountStarScene(container) {
       if (p < collapseEnd) {
         const c = smoothstep(p, 0, collapseEnd);
         targetRadius = lerp(supernovaStartRadius, 0.45, c);
-        targetIntensity = lerp(1, 1.4, c);
+        if (!physical) targetIntensity = lerp(1, 1.4, c);
       } else {
         const burst = easeOutCubic((p - collapseEnd) / 0.45);
         targetRadius = 0.45 + 2.2 * burst;
-        targetIntensity = 1.05 * (1 - smoothstep(p, 0.1, 0.6));
+        if (!physical) targetIntensity = 1.05 * (1 - smoothstep(p, 0.1, 0.6));
         flashLevel = p < 0.08 ? (p - collapseEnd) / (0.08 - collapseEnd) : Math.exp(-(p - 0.08) * 16);
       }
     }
@@ -869,7 +918,8 @@ function mountStarScene(container) {
     displayRadius = isSupernova ? targetRadius : damp(displayRadius, targetRadius, 2.5, delta);
     bodyIntensity = isSupernova ? targetIntensity : damp(bodyIntensity, targetIntensity, 3, delta);
 
-    tmpColor.set(latest.color);
+    if (physical) tmpColor.setRGB(...latest.surfaceColor);
+    else tmpColor.set(latest.color);
     displayColor.lerp(tmpColor, 1 - Math.exp(-(isSupernova ? 10 : 2.5) * delta));
 
     for (const key of ["cell", "contrast", "spots", "rays", "blotch"]) {
@@ -886,7 +936,7 @@ function mountStarScene(container) {
     // Spin-up/down over ~1s rather than snapping, so a stage change (e.g.
     // collapsing into a fast-spinning neutron star) reads as acceleration.
     rotationSpeed = damp(rotationSpeed, targetRotation, 1.5, delta);
-    star.rotation.y += delta * rotationSpeed;
+    star.rotation.y += delta * rotationSpeed * motion;
 
     // --- the star body + corona -----------------------------------------
     star.visible = !isBlackHole && bodyIntensity > 0.01;
@@ -909,6 +959,10 @@ function mountStarScene(container) {
       const align = Math.abs(tmpVec.dot(tmpVec2.copy(camera.position).normalize()));
       coronaTarget = 0.7 + 2.6 * Math.pow(align, 10);
     }
+    // Interim, physical mode only: a halo can't outshine the surface it comes
+    // from, so it dims with the body's exposure (capped at the stylized level).
+    // Phase 3 replaces this corona with a physically faint one.
+    if (physical) coronaTarget *= Math.min(targetIntensity, 1);
     coronaIntensity = isNeutronStar ? coronaTarget : damp(coronaIntensity, coronaTarget, 3, delta);
     corona.visible = coronaIntensity > 0.01;
     corona.quaternion.copy(camera.quaternion);
@@ -945,7 +999,7 @@ function mountStarScene(container) {
       nebulaOpacityTarget = 1.0 * smoothstep(p, 0.0, 0.2);
       palette = PLANETARY_PALETTE;
     } else if (stage === "white_dwarf") {
-      nebulaScaleTarget = Math.min(gas.scale + delta * 0.12, 5.5);
+      nebulaScaleTarget = Math.min(gas.scale + delta * 0.12 * motion, 5.5);
       nebulaOpacityTarget = 0.42;
       palette = PLANETARY_PALETTE;
     } else if (isSupernova) {
@@ -953,7 +1007,7 @@ function mountStarScene(container) {
       nebulaOpacityTarget = 0.9 * smoothstep(p, 0.15, 0.55);
       palette = SUPERNOVA_PALETTE;
     } else if (isRemnantStage) {
-      nebulaScaleTarget = Math.min(gas.scale + delta * 0.1, 5.5);
+      nebulaScaleTarget = Math.min(gas.scale + delta * 0.1 * motion, 5.5);
       nebulaOpacityTarget = 0.4;
       palette = SUPERNOVA_PALETTE;
     }
@@ -965,7 +1019,7 @@ function mountStarScene(container) {
     gas.opacity = damp(gas.opacity, nebulaOpacityTarget, nebulaOpacityTarget > gas.opacity ? 1.6 : 4, delta);
     nebula.visible = gas.opacity > 0.01;
     nebula.scale.set(gas.scale, gas.scale * 0.86, gas.scale * 1.08);
-    nebula.rotation.y += delta * 0.03;
+    nebula.rotation.y += delta * 0.03 * motion;
     nebulaMaterial.uniforms.uOpacity.value = gas.opacity;
     nebulaMaterial.uniforms.uColorA.value.copy(gas.colorA);
     nebulaMaterial.uniforms.uColorB.value.copy(gas.colorB);
@@ -1027,9 +1081,9 @@ function mountStarScene(container) {
 
     // Camera shake at the moment of the blast; applied for the render only
     // so OrbitControls never sees (and accumulates) the offset.
-    const shake = isSupernova ? 0.12 * flashLevel : 0;
-    const shakeX = (Math.random() - 0.5) * shake;
-    const shakeY = (Math.random() - 0.5) * shake;
+    const shake = isSupernova ? 0.12 * flashLevel * motion : 0;
+    const shakeX = (rand() - 0.5) * shake;
+    const shakeY = (rand() - 0.5) * shake;
     camera.position.x += shakeX;
     camera.position.y += shakeY;
     composer.render(delta);
@@ -1053,9 +1107,15 @@ function mountStarScene(container) {
   };
 }
 
-export function StarScene({ radius, color, stage, luminosity, progress }) {
+// surfaceColor, surfaceLuminance, renderMode and exposureMode are optional;
+// without them the scene renders exactly as the stylized look.
+export function StarScene({
+  radius, color, stage, luminosity, progress, surfaceColor, surfaceLuminance, renderMode, exposureMode,
+}) {
   if (mountedContainer) {
-    mountedContainer._uniSimuLatest = { radius, color, stage, luminosity, progress };
+    mountedContainer._uniSimuLatest = {
+      radius, color, stage, luminosity, progress, surfaceColor, surfaceLuminance, renderMode, exposureMode,
+    };
   }
   return <div ref={mountStarScene} style={{ width: "100%", height: "100%" }} />;
 }

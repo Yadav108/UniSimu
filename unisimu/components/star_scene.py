@@ -32,6 +32,11 @@ class StarScene(rx.NoSSRComponent):
     stage: rx.Var[str]
     luminosity: rx.Var[float]
     progress: rx.Var[float]
+    # Optional (realism Phase 1). Without them the scene keeps the stylized look.
+    surface_color: rx.Var[list[float]]
+    surface_luminance: rx.Var[float]
+    render_mode: rx.Var[str]
+    exposure_mode: rx.Var[str]
 
 
 star_scene = StarScene.create
