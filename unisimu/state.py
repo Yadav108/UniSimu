@@ -10,6 +10,7 @@ from reflex.event import KeyInputInfo
 from unisimu import hr_geometry
 from unisimu.copy import STAGE_CAPTIONS, STAGE_LABELS
 from unisimu.formatting import format_scientific
+from unisimu.physics.blackbody import blackbody_display_color
 from unisimu.physics.stellar import (
     SUN_RADIUS_KM,
     TERMINAL_STAGES,
@@ -29,6 +30,13 @@ CAPTION_SECONDS = 8.5
 MIN_MASS_MSUN = 0.1
 MAX_MASS_MSUN = 150.0
 SPEED_OPTIONS = ["0.25", "1", "4", "16"]
+# "stylized" is today's look; "physical" drives colour and brightness from the
+# blackbody physics (docs/physics/01-radiometry.md).
+RENDER_MODES = ["stylized", "physical"]
+# Physical mode only: "auto" scales every star's surface to the same level
+# (colour only); "fixed" is one camera exposure for every star, so a red dwarf
+# is dim and a hot supergiant blinding.
+EXPOSURE_MODES = ["auto", "fixed"]
 
 
 class SimState(rx.State):
@@ -39,6 +47,8 @@ class SimState(rx.State):
     mass_msun: float = 1.0
     speed_multiplier: float = 1.0
     playing: bool = False
+    render_mode: str = "stylized"
+    exposure_mode: str = "auto"
 
     # simulated age in years, derived each tick from the cinematic clock
     # (`_screen_seconds`, below) -- see physics.stellar.cinematic_age_years
@@ -88,6 +98,18 @@ class SimState(rx.State):
     def set_speed(self, value: str | list[str]):
         chosen = value[0] if isinstance(value, list) else value
         self.speed_multiplier = float(chosen)
+
+    @rx.event
+    def set_render_mode(self, value: str | list[str]):
+        chosen = value[0] if isinstance(value, list) else value
+        if chosen in RENDER_MODES:
+            self.render_mode = chosen
+
+    @rx.event
+    def set_exposure_mode(self, value: str | list[str]):
+        chosen = value[0] if isinstance(value, list) else value
+        if chosen in EXPOSURE_MODES:
+            self.exposure_mode = chosen
 
     @rx.event
     def play(self):
@@ -230,6 +252,16 @@ class SimState(rx.State):
             return f"{format_scientific(self.radius_rsun)} R☉"
         km = self.radius_rsun * SUN_RADIUS_KM
         return f"{km:,.1f} km"
+
+    @rx.var(cache=True)
+    def surface_color_linear(self) -> list[float]:
+        """Blackbody surface colour as linear sRGB with luminance 1."""
+        return list(blackbody_display_color(self.temperature_k)[0])
+
+    @rx.var(cache=True)
+    def surface_luminance(self) -> float:
+        """Surface luminance relative to a 5772 K blackbody surface."""
+        return blackbody_display_color(self.temperature_k)[1]
 
     @rx.var(cache=True)
     def speed_display(self) -> str:

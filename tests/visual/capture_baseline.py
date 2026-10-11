@@ -65,8 +65,16 @@ FRAME_TIME_JS = """(ms) => new Promise(resolve => {
 })"""
 
 
+# Set by main() from the command line.
+OPTIONS = {"render_mode": "stylized", "exposure": "auto", "seed": None}
+
+
 def open_preset(page, preset, speed: str) -> None:
-    page.goto(URL, wait_until="networkidle")
+    url = URL
+    if OPTIONS["seed"] is not None:
+        # seeded RNG + frozen animation clock (see readTestMode in star_scene.jsx)
+        url += f"?unisimuSeed={OPTIONS['seed']}&unisimuFreeze=10"
+    page.goto(url, wait_until="networkidle")
     # the session remembers the detail view across reloads; go back to the shelf first
     back = page.get_by_role("button", name="← Shelf")
     if back.count():
@@ -76,6 +84,9 @@ def open_preset(page, preset, speed: str) -> None:
     page.locator("canvas").wait_for(state="attached", timeout=120000)
     page.wait_for_timeout(SCENE_LOAD_MS)
     page.get_by_role("radio", name=f"{speed}×").click()
+    page.get_by_role("radio", name=OPTIONS["render_mode"].capitalize()).click()
+    if OPTIONS["render_mode"] == "physical":
+        page.get_by_role("radio", name=OPTIONS["exposure"].capitalize()).click()
     page.get_by_role("button", name="Play").click()
 
 
@@ -145,9 +156,13 @@ def stage_order_16x(page, preset) -> list[str]:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", default="tests/visual/baseline")
+    parser.add_argument("--render-mode", choices=["stylized", "physical"], default="stylized")
+    parser.add_argument("--exposure", choices=["auto", "fixed"], default="auto")
+    parser.add_argument("--seed", type=int, default=None, help="enable the repeatable test mode")
     args = parser.parse_args()
+    OPTIONS.update(render_mode=args.render_mode, exposure=args.exposure, seed=args.seed)
     out_root = Path(args.out)
-    report: dict = {"url": URL, "renderer": "headless chromium + SwiftShader", "presets": {}}
+    report: dict = {"url": URL, "renderer": "headless chromium + SwiftShader", "options": OPTIONS, "presets": {}}
     with sync_playwright() as p:
         browser = p.chromium.launch(args=["--use-angle=swiftshader", "--enable-unsafe-swiftshader"])
         for preset in PRESETS:

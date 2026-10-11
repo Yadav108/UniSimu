@@ -14,7 +14,7 @@ Nielsen mapping:
 
 import reflex as rx
 
-from unisimu.state import MAX_MASS_MSUN, MIN_MASS_MSUN, SPEED_OPTIONS, SimState
+from unisimu.state import EXPOSURE_MODES, MAX_MASS_MSUN, MIN_MASS_MSUN, RENDER_MODES, SPEED_OPTIONS, SimState
 
 
 def _transport_buttons() -> rx.Component:
@@ -83,11 +83,49 @@ def _speed_control() -> rx.Component:
     )
 
 
+def _look_control() -> rx.Component:
+    """Stylized vs physical rendering; exposure only matters for physical."""
+    return rx.vstack(
+        rx.text("Look", weight="medium", size="2"),
+        rx.segmented_control.root(
+            *[rx.segmented_control.item(m.capitalize(), value=m) for m in RENDER_MODES],
+            value=SimState.render_mode,
+            on_change=SimState.set_render_mode,
+        ),
+        rx.cond(
+            SimState.render_mode == "physical",
+            rx.vstack(
+                rx.text("Exposure", weight="medium", size="2"),
+                rx.segmented_control.root(
+                    *[rx.segmented_control.item(m.capitalize(), value=m) for m in EXPOSURE_MODES],
+                    value=SimState.exposure_mode,
+                    on_change=SimState.set_exposure_mode,
+                ),
+                rx.text(
+                    rx.cond(
+                        SimState.exposure_mode == "auto",
+                        "Every star's surface is shown at the same brightness: compare colours.",
+                        "One camera exposure for every star: a red dwarf is dim, a hot giant blinding.",
+                    ),
+                    size="1",
+                    color_scheme="gray",
+                ),
+                spacing="1",
+                align="start",
+            ),
+            rx.fragment(),
+        ),
+        spacing="1",
+        align="start",
+    )
+
+
 def controls() -> rx.Component:
     return rx.vstack(
         _transport_buttons(),
         _mass_control(),
         _speed_control(),
+        _look_control(),
         spacing="4",
         align="start",
         width="100%",

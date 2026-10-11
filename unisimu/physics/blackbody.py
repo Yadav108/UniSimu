@@ -6,6 +6,7 @@ stellar stages span, from cool protostars/remnants to supernova flashes).
 """
 
 import math
+from functools import lru_cache
 
 
 def _clamp(value: float, lo: float = 0.0, hi: float = 255.0) -> float:
@@ -160,6 +161,7 @@ def blackbody_linear_rgb(temperature_k: float) -> tuple[float, float, float]:
     return xyz_to_linear_srgb((X / _REFERENCE_Y, Y / _REFERENCE_Y, Z / _REFERENCE_Y))
 
 
+@lru_cache(maxsize=512)
 def blackbody_display_color(temperature_k: float) -> tuple[tuple[float, float, float], float]:
     """Split a blackbody's linear sRGB into (colour with luminance 1, luminance).
 
