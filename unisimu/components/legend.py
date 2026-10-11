@@ -17,6 +17,12 @@ _TERMINAL_ROWS = [
     ("Black Hole", "Stars ≥20 M☉ collapse past the neutron-degeneracy limit after their supernova."),
 ]
 
+# CC BY-SA 4.0 requires crediting the star catalogue wherever it is shown.
+_DATA_CREDIT = (
+    "Physical look's background stars: HYG Database v4.2 (astronexus.com, David Nash), "
+    "CC BY-SA 4.0. Positions and brightnesses are real; the Milky Way glow is approximate."
+)
+
 _SHORTCUT_ROWS = [
     ("Space", "Play / Pause"),
     ("R", "Reset"),
@@ -83,6 +89,8 @@ def legend() -> rx.Component:
                 _terminal_legend(),
                 rx.separator(size="4"),
                 _shortcuts_legend(),
+                rx.separator(size="4"),
+                rx.text(_DATA_CREDIT, size="1", color_scheme="gray"),
                 spacing="4",
                 align="start",
             ),

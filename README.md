@@ -130,4 +130,13 @@ instead.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+The code is MIT — see [LICENSE](LICENSE).
+
+### Third-party data
+
+`assets/starfield.bin`, the star catalogue behind the *Physical* look's background sky, is
+derived from the [HYG Database v4.2](https://www.astronexus.com/projects/hyg) (astronexus.com,
+David Nash) and is licensed **CC BY-SA 4.0, not MIT**. See
+[`assets/starfield.LICENSE.md`](assets/starfield.LICENSE.md) for the attribution and the list of
+changes. Rebuild it with `python tools/build_starfield.py hygdata_v42.csv.gz`; delete it and the
+app falls back to its procedural sky.
