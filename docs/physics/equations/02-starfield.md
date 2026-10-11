@@ -14,9 +14,16 @@ Source: astronexus.com/projects/hyg (opened).
 - **Licence: "Creative Commons Attribution-ShareAlike 4.0"** (quoted from the page).
 - Download: `/downloads/catalogs/hygdata_v42.csv.gz`, about 14 MB, also mirrored at codeberg.org/astronexus.
 
-The field names (`ra`, `dec`, `mag`, `ci`, …) are described on the separate "HYG Details" page, which has **not yet been opened**. Confirm them in Phase 2 before writing `tools/build_starfield.py`.
+Field list, from the "HYG Details" page (opened in Phase 2; **verified**):
+- `ra` is in hours and `dec` in degrees (J2000). `rarad` and `decrad` are the same in radians.
+- `mag` is apparent visual (V) magnitude and `ci` is B−V.
+- Row 0 is the Sun (`proper` = "Sol"), so it is excluded.
 
-**Licence decision D4 is still open.** A binary derived from CC BY-SA data would probably have to be shared under CC BY-SA, while the repo is MIT.
+Checked against the data: Sirius has `ra` = 6.7525 and `dec` = −16.716.
+
+**D4 decided (owner, Phase 2): accept CC BY-SA 4.0 and commit the derived binary with attribution** (see `assets/starfield.LICENSE.md`). The note below records the options that were considered.
+
+**Licence decision D4, as it was before the decision.** A binary derived from CC BY-SA data would probably have to be shared under CC BY-SA, while the repo is MIT.
 - Option A: keep the binary in a separate, attributed, CC BY-SA asset folder.
 - Option B: use a public-domain source. Hipparcos/Tycho via CDS are candidates; check their terms.
 

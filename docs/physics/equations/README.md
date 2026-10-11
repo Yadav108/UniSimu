@@ -57,7 +57,7 @@ Anything typed from memory or taken from the brief without being opened is marke
 |---|---|---|
 | IAU 2015 B3 (T☉ = 5772 K, R☉) | Phase 1 | not opened |
 | CODATA G | Phase 3 | not opened |
-| HYG field list | Phase 2 | not opened |
+| HYG field list | Phase 2 | ✅ verified in Phase 2 |
 | Claret & Bloemen 2011 ReadMe | Phase 3 | not opened |
 | Sunspot ΔT | Phase 3 | unverified |
 | Granule-size factor for supergiants | Phase 3 | unverified |
