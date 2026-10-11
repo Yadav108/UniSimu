@@ -75,8 +75,12 @@ def open_preset(page, preset, speed: str) -> None:
         # seeded RNG + frozen animation clock (see readTestMode in star_scene.jsx)
         url += f"?unisimuSeed={OPTIONS['seed']}&unisimuFreeze=10"
     page.goto(url, wait_until="networkidle")
-    # the session remembers the detail view across reloads; go back to the shelf first
+    # The session remembers the detail view across reloads, and restores it a
+    # moment after load: wait for either view, then go back to the shelf.
+    card = page.get_by_text(preset.name, exact=True)
     back = page.get_by_role("button", name="← Shelf")
+    card.or_(back).first.wait_for(timeout=60000)
+    page.wait_for_timeout(500)
     if back.count():
         back.click()
     page.get_by_text(preset.name, exact=True).click()
