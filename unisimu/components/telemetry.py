@@ -94,6 +94,16 @@ def telemetry_readout() -> rx.Component:
             rx.text(SimState.radius_display, size="2"),
             width="100%",
         ),
+        rx.cond(
+            SimState.pulsation_display != "",
+            rx.hstack(
+                rx.text("Pulsation period", size="2", color_scheme="gray"),
+                rx.spacer(),
+                rx.text(SimState.pulsation_display, size="2"),
+                width="100%",
+            ),
+            rx.fragment(),
+        ),
         rx.progress(value=SimState.stage_progress_pct, width="100%"),
         spacing="2",
         align="start",

@@ -10,6 +10,7 @@ from reflex.event import KeyInputInfo
 from unisimu import hr_geometry
 from unisimu.copy import STAGE_CAPTIONS, STAGE_LABELS
 from unisimu.formatting import format_scientific
+from unisimu.physics import surface
 from unisimu.physics.blackbody import blackbody_display_color
 from unisimu.physics.stellar import (
     SUN_RADIUS_KM,
@@ -49,6 +50,11 @@ class SimState(rx.State):
     playing: bool = False
     render_mode: str = "stylized"
     exposure_mode: str = "auto"
+    # Physical mode only. Glare: the camera's point-spread function (a lens
+    # effect, not star physics). Coronagraph: block the disc and raise the
+    # exposure so the corona -- ~10^6 times fainter than the disc -- shows.
+    glare: bool = True
+    coronagraph: bool = False
 
     # simulated age in years, derived each tick from the cinematic clock
     # (`_screen_seconds`, below) -- see physics.stellar.cinematic_age_years
@@ -104,6 +110,14 @@ class SimState(rx.State):
         chosen = value[0] if isinstance(value, list) else value
         if chosen in RENDER_MODES:
             self.render_mode = chosen
+
+    @rx.event
+    def set_glare(self, value: bool):
+        self.glare = bool(value)
+
+    @rx.event
+    def set_coronagraph(self, value: bool):
+        self.coronagraph = bool(value)
 
     @rx.event
     def set_exposure_mode(self, value: str | list[str]):
@@ -262,6 +276,62 @@ class SimState(rx.State):
     def surface_luminance(self) -> float:
         """Surface luminance relative to a 5772 K blackbody surface."""
         return blackbody_display_color(self.temperature_k)[1]
+
+    # --- stellar surface (physical mode; docs/physics/03-surface.md) --------
+    # The surface terms use the initial mass: mass loss is not modelled.
+
+    @rx.var(cache=True)
+    def limb_darkening_coeffs(self) -> list[float]:
+        """(a_R, a_G, a_B, b_R, b_G, b_B) of the quadratic limb-darkening law."""
+        logg = surface.surface_gravity_cgs(self.mass_msun, max(self.radius_rsun, 1e-9))
+        return list(surface.limb_darkening(self.temperature_k, logg))
+
+    @rx.var(cache=True)
+    def granulation_cells(self) -> float:
+        """Granules around the circumference (2 pi R / d)."""
+        if self.stage in TERMINAL_STAGES or self.temperature_k <= 0:
+            return 0.0
+        return surface.granulation_scale(self.temperature_k, self.mass_msun, self.radius_rsun)
+
+    @rx.var(cache=True)
+    def granulation_amplitude(self) -> float:
+        """Granulation temperature contrast delta T / T (0 for radiative surfaces)."""
+        if self.stage in TERMINAL_STAGES or self.temperature_k <= 0:
+            return 0.0
+        return surface.GRANULATION_TEMPERATURE_CONTRAST * surface.granulation_visibility(self.temperature_k)
+
+    @rx.var(cache=True)
+    def convection_visibility(self) -> float:
+        """1 for a convective surface (granules, spots), 0 for a radiative one."""
+        if self.stage in TERMINAL_STAGES or self.temperature_k <= 0:
+            return 0.0
+        return surface.granulation_visibility(self.temperature_k)
+
+    @rx.var(cache=True)
+    def temperature_sensitivity_rgb(self) -> list[float]:
+        return list(surface.temperature_sensitivity(self.temperature_k))
+
+    @rx.var(cache=True)
+    def spot_contrast_rgb(self) -> list[float]:
+        return list(surface.spot_contrast(self.temperature_k))
+
+    @rx.var(cache=True)
+    def pulsation_period_days(self) -> float:
+        """Fundamental-mode period for pulsating giants, 0 otherwise."""
+        if self.stage not in ("red_giant", "red_supergiant"):
+            return 0.0
+        return surface.pulsation_period_days(self.mass_msun, self.radius_rsun)
+
+    @rx.var(cache=True)
+    def pulsation_display(self) -> str:
+        # recomputed here rather than reading the other var, so the dependency
+        # on stage / mass / radius is explicit
+        if self.stage not in ("red_giant", "red_supergiant"):
+            return ""
+        days = surface.pulsation_period_days(self.mass_msun, self.radius_rsun)
+        if days < 2:
+            return f"{days * 24:,.0f} h"
+        return f"{days:,.0f} d"
 
     @rx.var(cache=True)
     def speed_display(self) -> str:

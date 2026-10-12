@@ -110,6 +110,18 @@ def _look_control() -> rx.Component:
                     size="1",
                     color_scheme="gray",
                 ),
+                rx.hstack(
+                    rx.switch(checked=SimState.glare, on_change=SimState.set_glare, size="1"),
+                    rx.text("Camera glare (a lens effect, not the star)", size="1"),
+                    spacing="2",
+                    align="center",
+                ),
+                rx.hstack(
+                    rx.switch(checked=SimState.coronagraph, on_change=SimState.set_coronagraph, size="1"),
+                    rx.text("Coronagraph (block the disc to see the faint corona)", size="1"),
+                    spacing="2",
+                    align="center",
+                ),
                 spacing="1",
                 align="start",
             ),

@@ -138,6 +138,23 @@ const GLOW_UNRESOLVED_BOOST = 150;
 const QUALITY_TIERS = [{ starMagLimit: 6.5 }, { starMagLimit: 5.5 }, { starMagLimit: 4.5 }];
 const SLOW_FRAME_MS = 25;
 
+// Stellar surface (physical mode). The physics -- limb-darkening coefficients,
+// granule count, temperature contrasts, pulsation period -- arrives from
+// unisimu/physics/surface.py. These are render and camera settings only.
+const GRANULE_RENDER_MAX = 160; // more granules than this around the limb are below screen resolution
+const PULSATION_SCREEN_SECONDS_PER_DAY = 0.01; // cinematic: Betelgeuse's ~392 d plays as ~3.9 s
+const PULSATION_MIN_SCREEN_SECONDS = 1.5; // never strobe while a giant is still small
+const PULSATION_AMPLITUDE = 0.03; // illustrative radius swing, as in the stylized look
+const PHYSICAL_GLARE_STRENGTH = 0.05; // camera glare: ~31 % of the light spread into the glow
+// UnrealBloomPass adds 3 * strength * sum(lerpBloomFactor) = 9 * strength times
+// the image's light on top of it (three r185 source; the five factors always
+// sum to 3), so dividing the output by (1 + 9 * strength) conserves energy.
+const BLOOM_ENERGY_GAIN = 9;
+// White-light corona near the limb vs the disc: about a million times fainter
+// (Arregui & Van Doorsselaere 2024). The coronagraph view blocks the disc and
+// raises the corona's exposure by the inverse of this.
+const CORONA_DISC_CONTRAST = 1e-6;
+
 // ---------------------------------------------------------------- GLSL ---
 
 // Hash-based value noise + fbm. Cheap, no textures, and seamless when
@@ -204,6 +221,10 @@ const STAR_FRAG = `
 ${NOISE_GLSL}
 uniform vec3 uColor;
 uniform float uTime, uIntensity, uCellScale, uContrast, uSpots, uLimb, uBlotch;
+// physical mode (uPhysical = 1): every brightness change is a temperature
+// change pushed through the Planck law, per colour channel
+uniform float uPhysical, uGranAmp;
+uniform vec3 uLD1, uLD2, uGranSens, uSpotContrast;
 varying vec3 vObj;
 varying vec3 vNormalV;
 varying vec3 vViewDir;
@@ -218,6 +239,18 @@ void main() {
   float spotN = fbm(normalize(vObj) * 1.7 + 11.3 + vec3(uTime * 0.005));
   float spot = smoothstep(0.62, 0.78, spotN) * uSpots;
   float blotch = fbm(normalize(vObj) * 1.3 + vec3(uTime * 0.02, 0.0, 3.1));
+  if (uPhysical > 0.5) {
+    // quadratic limb darkening, per channel (Claret & Bloemen 2011)
+    float x = 1.0 - mu;
+    vec3 limbP = max(1.0 - uLD1 * x - uLD2 * x * x, 0.0);
+    // granulation: +-dT/T around the mean; I_c scales by (1 + dlnI_c/dlnT * dT/T)
+    float n = (cells - 0.5) * 2.0;
+    vec3 colP = uColor * (1.0 + uGranSens * (uGranAmp * n));
+    // starspot umbra: the Planck ratio at the umbral temperature
+    colP *= mix(vec3(1.0), uSpotContrast, spot);
+    gl_FragColor = vec4(colP * limbP * uIntensity, 1.0);
+    return;
+  }
   float limb = 1.0 - uLimb * (1.0 - mu);
   // Convection cells: bright granule centres, cooler and redder lanes.
   vec3 lane = uColor * vec3(0.9, 0.72, 0.6);
@@ -492,6 +525,9 @@ function makeStarMaterial() {
     uniforms: {
       uColor: color(1, 1, 1), uTime: { value: 0 }, uIntensity: { value: 1 },
       uCellScale: { value: 6 }, uContrast: { value: 0.4 }, uSpots: { value: 0 }, uLimb: { value: 0.65 }, uBlotch: { value: 0 },
+      uPhysical: { value: 0 }, uGranAmp: { value: 0 },
+      uLD1: { value: new THREE.Vector3() }, uLD2: { value: new THREE.Vector3() },
+      uGranSens: { value: new THREE.Vector3() }, uSpotContrast: { value: new THREE.Vector3(1, 1, 1) },
     },
   });
 }
@@ -973,6 +1009,7 @@ function mountStarScene(container) {
   let rotationSpeed = ROTATION_SPEED_BY_STAGE[initial.stage] ?? DEFAULT_ROTATION_SPEED;
   let previousStage = initial.stage;
   let elapsed = 0;
+  let pulsationPhase = 0;
 
   const surface = { ...SURFACE_BY_STAGE[initial.stage] ?? SURFACE_BY_STAGE.main_sequence };
   let bodyIntensity = surface.intensity;
@@ -1117,9 +1154,27 @@ function mountStarScene(container) {
     for (const key of ["cell", "contrast", "spots", "rays", "blotch"]) {
       surface[key] = damp(surface[key], look[key], 2, delta);
     }
+    // Physical surface: granule count from the pressure scale height (Python),
+    // clamped to what the screen can show -- and fading out, as on the real
+    // full-disc Sun, when the granules get smaller than that.
+    const physicalSurface = physical && Array.isArray(latest.limbDarkening);
+    const granuleCount = latest.granulationCells ?? 0;
+    const granuleFade = granuleCount > GRANULE_RENDER_MAX ? GRANULE_RENDER_MAX / granuleCount : 1;
+    if (physicalSurface) {
+      surface.cell = damp(surface.cell, Math.min(Math.max(granuleCount, 3), GRANULE_RENDER_MAX) / (2 * Math.PI), 2, delta);
+    }
 
     // Giants pulsate slowly, like a Mira variable.
-    const pulsation = stage === "red_giant" || stage === "red_supergiant"
+    // Physical: the fundamental-mode period from Python, played on a cinematic
+    // clock. A phase accumulator keeps the motion smooth as the period grows.
+    const periodDays = latest.pulsationPeriodDays ?? 0;
+    if (physicalSurface && periodDays > 0) {
+      const screenPeriod = Math.max(periodDays * PULSATION_SCREEN_SECONDS_PER_DAY, PULSATION_MIN_SCREEN_SECONDS);
+      pulsationPhase += (delta * motion) / screenPeriod;
+    }
+    const pulsation = physicalSurface
+      ? (periodDays > 0 ? 1 + PULSATION_AMPLITUDE * Math.sin(2 * Math.PI * pulsationPhase) : 1)
+      : stage === "red_giant" || stage === "red_supergiant"
       ? 1 + 0.03 * Math.sin(elapsed * 1.7) + 0.012 * Math.sin(elapsed * 4.3)
       : 1;
     const shownRadius = displayRadius * pulsation;
@@ -1131,13 +1186,28 @@ function mountStarScene(container) {
     star.rotation.y += delta * rotationSpeed * motion;
 
     // --- the star body + corona -----------------------------------------
-    star.visible = !isBlackHole && bodyIntensity > 0.01;
+    const coronagraph = physical && latest.coronagraph === true;
+    // the coronagraph's occulting disc is the star itself, drawn black
+    star.visible = !isBlackHole && (bodyIntensity > 0.01 || (coronagraph && !isRemnantStage));
     star.scale.setScalar(Math.max(shownRadius, 0.001));
     starMaterial.uniforms.uColor.value.copy(displayColor).lerp(tmpColor.set(1, 1, 1), flashLevel * 0.5);
     starMaterial.uniforms.uIntensity.value = bodyIntensity;
     starMaterial.uniforms.uCellScale.value = surface.cell;
     starMaterial.uniforms.uContrast.value = surface.contrast;
     starMaterial.uniforms.uSpots.value = surface.spots;
+    const starU = starMaterial.uniforms;
+    starU.uPhysical.value = physicalSurface ? 1 : 0;
+    if (physicalSurface) {
+      const ld = latest.limbDarkening;
+      starU.uLD1.value.set(ld[0], ld[1], ld[2]);
+      starU.uLD2.value.set(ld[3], ld[4], ld[5]);
+      starU.uGranSens.value.set(...(latest.temperatureSensitivity ?? [0, 0, 0]));
+      starU.uSpotContrast.value.set(...(latest.spotContrast ?? [1, 1, 1]));
+      starU.uGranAmp.value = (latest.granulationAmplitude ?? 0) * granuleFade;
+      // spots only where there is convection to make them
+      starU.uSpots.value = surface.spots * (latest.convection ?? 0);
+      if (coronagraph) starU.uIntensity.value = 0;
+    }
     starMaterial.uniforms.uBlotch.value = surface.blotch;
 
     // Corona strength follows (log) luminosity, so a blazing supergiant
@@ -1154,7 +1224,10 @@ function mountStarScene(container) {
     // Interim, physical mode only: a halo can't outshine the surface it comes
     // from, so it dims with the body's exposure (capped at the stylized level).
     // Phase 3 replaces this corona with a physically faint one.
-    if (physical) coronaTarget *= Math.min(targetIntensity, 1);
+    // Physical: the corona is ~10^6 times fainter than the disc, so at the
+    // disc's exposure it is invisible; the coronagraph raises its exposure by
+    // 10^6 while the disc is blocked. (Its streamer pattern stays illustrative.)
+    if (physical) coronaTarget *= targetIntensity * CORONA_DISC_CONTRAST * (coronagraph ? 1 / CORONA_DISC_CONTRAST : 1);
     coronaIntensity = isNeutronStar ? coronaTarget : damp(coronaIntensity, coronaTarget, 3, delta);
     corona.visible = coronaIntensity > 0.01;
     corona.quaternion.copy(camera.quaternion);
@@ -1245,7 +1318,16 @@ function mountStarScene(container) {
     lensMaterial.uniforms.uOpacity.value = blackHoleOpacity;
 
     // --- bloom: the flash briefly overexposes everything ------------------
-    bloom.strength = 0.55 + flashLevel * 0.6 + (isBlackHole ? 0.2 : 0);
+    if (physical) {
+      // camera glare: one energy-conserving point-spread function for all light
+      bloom.threshold = 0;
+      bloom.strength = latest.glare === false ? 0 : PHYSICAL_GLARE_STRENGTH;
+      renderer.toneMappingExposure = 1 / (1 + BLOOM_ENERGY_GAIN * bloom.strength);
+    } else {
+      bloom.threshold = 0.88;
+      bloom.strength = 0.55 + flashLevel * 0.6 + (isBlackHole ? 0.2 : 0);
+      renderer.toneMappingExposure = 1;
+    }
 
     // --- camera ---------------------------------------------------------------
     let frame = displayRadius;
@@ -1305,10 +1387,14 @@ function mountStarScene(container) {
 // without them the scene renders exactly as the stylized look.
 export function StarScene({
   radius, color, stage, luminosity, progress, surfaceColor, surfaceLuminance, renderMode, exposureMode,
+  limbDarkening, granulationCells, granulationAmplitude, temperatureSensitivity, spotContrast,
+  pulsationPeriodDays, glare, coronagraph, convection,
 }) {
   if (mountedContainer) {
     mountedContainer._uniSimuLatest = {
       radius, color, stage, luminosity, progress, surfaceColor, surfaceLuminance, renderMode, exposureMode,
+      limbDarkening, granulationCells, granulationAmplitude, temperatureSensitivity, spotContrast,
+      pulsationPeriodDays, glare, coronagraph, convection,
     };
   }
   return <div ref={mountStarScene} style={{ width: "100%", height: "100%" }} />;
