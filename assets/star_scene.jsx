@@ -121,6 +121,23 @@ function readTestMode() {
 }
 let rand = Math.random;
 
+// Catalogue starfield (physical mode). Camera settings, not physics: star
+// fluxes and colours come from tools/build_starfield.py (HYG database v4.2,
+// CC BY-SA 4.0 -- see assets/starfield.LICENSE.md).
+const STARFIELD_URL = "/starfield.bin";
+const CATALOG_SKY_RADIUS = 90;
+const SKY_EXPOSURE = 8.0; // peak pixel value of a V = 0 star; a V = 6.5 star then peaks near 0.02
+const STAR_PSF_SIGMA_PX = 0.9; // camera point-spread function: Gaussian core, CSS pixels
+const STAR_SPRITE_PX = 7; // sprite covering about +-3.5 sigma
+// The baked glow only holds stars down to V = 9, but most of the Milky Way's
+// light comes from far fainter, unresolved stars. This factor stands in for
+// them so the band shows at all: an approximation, not a measurement.
+const GLOW_UNRESOLVED_BOOST = 150;
+// Quality tiers: brightest-first subsets of the catalogue, stepped down (never
+// back up) when frames average slower than SLOW_FRAME_MS.
+const QUALITY_TIERS = [{ starMagLimit: 6.5 }, { starMagLimit: 5.5 }, { starMagLimit: 4.5 }];
+const SLOW_FRAME_MS = 25;
+
 // ---------------------------------------------------------------- GLSL ---
 
 // Hash-based value noise + fbm. Cheap, no textures, and seamless when
@@ -353,12 +370,13 @@ const STARFIELD_VERT = `
 attribute vec3 aColor;
 attribute float aSize;
 attribute float aPhase;
-uniform float uPixelRatio, uTime;
+uniform float uPixelRatio, uTime, uTwinkle;
 varying vec3 vColor;
 varying float vTwinkle;
 void main() {
   vColor = aColor;
-  vTwinkle = 0.82 + 0.18 * sin(uTime * (0.6 + aPhase * 1.7) + aPhase * 40.0);
+  // uTwinkle = 0 in physical mode: twinkling is Earth's atmosphere, not space
+  vTwinkle = mix(1.0, 0.82 + 0.18 * sin(uTime * (0.6 + aPhase * 1.7) + aPhase * 40.0), uTwinkle);
   gl_PointSize = aSize * uPixelRatio;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }
@@ -371,6 +389,54 @@ void main() {
   float a = 1.0 - smoothstep(0.0, 1.0, d);
   a *= a;
   gl_FragColor = vec4(vColor * a * vTwinkle, 1.0);
+}
+`;
+
+// Catalogue stars (physical mode): steady points with no time term. Each is
+// the camera's point-spread function -- a small Gaussian core whose peak is
+// the star's flux times the sky exposure.
+const CATALOG_STAR_VERT = `
+attribute vec3 aFlux;
+uniform float uPixelRatio, uSpritePx;
+varying vec3 vFlux;
+void main() {
+  vFlux = aFlux;
+  gl_PointSize = uSpritePx * uPixelRatio;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`;
+const CATALOG_STAR_FRAG = `
+uniform float uExposure, uSigmaPx, uSpritePx, uPixelRatio;
+varying vec3 vFlux;
+void main() {
+  vec2 px = (gl_PointCoord - 0.5) * uSpritePx * uPixelRatio;
+  float sigma = uSigmaPx * uPixelRatio;
+  float psf = exp(-dot(px, px) / (2.0 * sigma * sigma));
+  gl_FragColor = vec4(vFlux * uExposure * psf, 1.0);
+}
+`;
+
+// Diffuse sky glow from the fainter catalogue stars, sampled from an
+// equirectangular map in RA/Dec (built by tools/build_starfield.py).
+const SKY_GLOW_VERT = `
+varying vec3 vDir;
+void main() {
+  vDir = position;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`;
+const SKY_GLOW_FRAG = `
+uniform sampler2D uGlow;
+uniform float uScale;
+varying vec3 vDir;
+const float PI = 3.141592653589793;
+void main() {
+  vec3 d = normalize(vDir);
+  // scene (X, Y, Z) -> equatorial (x, y, z) = (X, -Z, Y), see physics/starfield.py
+  float ra = atan(-d.z, d.x);
+  if (ra < 0.0) ra += 2.0 * PI;
+  float dec = asin(clamp(d.y, -1.0, 1.0));
+  gl_FragColor = vec4(texture2D(uGlow, vec2(ra / (2.0 * PI), 0.5 - dec / PI)).rgb * uScale, 1.0);
 }
 `;
 
@@ -551,9 +617,76 @@ function makeStarfield(pixelRatio) {
   const material = shaderMaterial({
     vertex: STARFIELD_VERT,
     fragment: POINT_FRAG,
-    uniforms: { uPixelRatio: { value: pixelRatio }, uTime: { value: 0 } },
+    uniforms: { uPixelRatio: { value: pixelRatio }, uTime: { value: 0 }, uTwinkle: { value: 1 } },
   });
   return { points: new THREE.Points(geometry, material), geometry, material };
+}
+
+// Fetch and decode assets/starfield.bin (layout documented in
+// tools/build_starfield.py) into catalogue points plus the sky-glow sphere.
+async function loadCatalogStarfield(pixelRatio) {
+  const response = await fetch(STARFIELD_URL);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const buffer = await response.arrayBuffer();
+  const view = new DataView(buffer);
+  if (String.fromCharCode(...new Uint8Array(buffer, 0, 4)) !== "USF1") throw new Error("not a starfield file");
+  const count = view.getUint32(4, true);
+  const glowW = view.getUint16(12, true);
+  const glowH = view.getUint16(14, true);
+  const stars = new Float32Array(buffer, 16, count * 7);
+  const glow = new Float32Array(buffer, 16 + count * 28, glowW * glowH * 3);
+
+  const positions = new Float32Array(count * 3);
+  const fluxes = new Float32Array(count * 3);
+  const magnitudes = new Float32Array(count);
+  for (let i = 0; i < count; i++) {
+    const s = i * 7;
+    const flux = stars[s + 6];
+    for (let k = 0; k < 3; k++) {
+      positions[i * 3 + k] = stars[s + k] * CATALOG_SKY_RADIUS;
+      fluxes[i * 3 + k] = stars[s + 3 + k] * flux;
+    }
+    magnitudes[i] = -2.5 * Math.log10(flux);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute("aFlux", new THREE.BufferAttribute(fluxes, 3));
+  const material = shaderMaterial({
+    vertex: CATALOG_STAR_VERT,
+    fragment: CATALOG_STAR_FRAG,
+    uniforms: {
+      uPixelRatio: { value: pixelRatio }, uSpritePx: { value: STAR_SPRITE_PX },
+      uSigmaPx: { value: STAR_PSF_SIGMA_PX }, uExposure: { value: SKY_EXPOSURE },
+    },
+  });
+
+  const texels = new Uint16Array(glowW * glowH * 4);
+  for (let i = 0; i < glowW * glowH; i++) {
+    for (let k = 0; k < 3; k++) texels[i * 4 + k] = THREE.DataUtils.toHalfFloat(glow[i * 3 + k]);
+    texels[i * 4 + 3] = THREE.DataUtils.toHalfFloat(1);
+  }
+  const texture = new THREE.DataTexture(texels, glowW, glowH, THREE.RGBAFormat, THREE.HalfFloatType);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.magFilter = THREE.LinearFilter;
+  texture.minFilter = THREE.LinearFilter;
+  texture.generateMipmaps = false;
+  texture.needsUpdate = true;
+  const glowGeometry = new THREE.SphereGeometry(CATALOG_SKY_RADIUS + 5, 64, 32);
+  const glowMaterial = shaderMaterial({
+    vertex: SKY_GLOW_VERT,
+    fragment: SKY_GLOW_FRAG,
+    uniforms: { uGlow: { value: texture }, uScale: { value: 0 } },
+    side: THREE.BackSide,
+  });
+
+  return {
+    points: new THREE.Points(geometry, material),
+    glow: new THREE.Mesh(glowGeometry, glowMaterial),
+    magnitudes,
+    dispose() {
+      for (const r of [geometry, material, texture, glowGeometry, glowMaterial]) r.dispose();
+    },
+  };
 }
 
 function makeEjecta(pixelRatio) {
@@ -679,6 +812,49 @@ function mountStarScene(container) {
   track(starfield.geometry);
   track(starfield.material);
   scene.add(starfield.points);
+
+  // Physical mode's catalogue sky loads in the background. Until it arrives,
+  // or if the file is missing, the procedural sky stands in (without twinkle).
+  let catalog = null;
+  let disposed = false;
+  let qualityTier = 0;
+  function applyQuality() {
+    if (!catalog) return;
+    const limit = QUALITY_TIERS[qualityTier].starMagLimit;
+    let n = 0;
+    while (n < catalog.magnitudes.length && catalog.magnitudes[n] <= limit) n++;
+    catalog.points.geometry.setDrawRange(0, n);
+  }
+  loadCatalogStarfield(pixelRatio)
+    .then((loaded) => {
+      if (disposed) return loaded.dispose();
+      catalog = loaded;
+      catalog.points.visible = false;
+      catalog.glow.visible = false;
+      scene.add(catalog.points, catalog.glow);
+      applyQuality();
+    })
+    .catch((err) => console.warn(`[UniSimu] catalogue starfield unavailable (${err.message}); using the procedural sky`));
+
+  // Frame-time watch: judged over ~3 s windows, the first one (shader
+  // compilation) ignored. Stepping down only, so it never oscillates.
+  let windowSeconds = 0;
+  let windowFrames = 0;
+  let windowsSeen = 0;
+  function noteFrameTime(seconds) {
+    windowSeconds += seconds;
+    windowFrames += 1;
+    if (windowSeconds < 3) return;
+    const meanMs = (windowSeconds / windowFrames) * 1000;
+    windowSeconds = 0;
+    windowFrames = 0;
+    windowsSeen += 1;
+    if (windowsSeen > 1 && meanMs > SLOW_FRAME_MS && qualityTier < QUALITY_TIERS.length - 1) {
+      qualityTier += 1;
+      applyQuality();
+      console.info(`[UniSimu] frames averaging ${meanMs.toFixed(0)} ms: quality tier ${qualityTier}`);
+    }
+  }
 
   // The star: self-luminous shader sphere + billboard corona.
   const starGeometry = track(new THREE.SphereGeometry(1, 64, 64));
@@ -819,12 +995,19 @@ function mountStarScene(container) {
   const tmpQuat = new THREE.Quaternion();
   const worldUp = new THREE.Vector3(0, 1, 0);
 
+  let glowScale = 0;
   function resize() {
     const w = container.clientWidth;
     const h = container.clientHeight;
     if (w === 0 || h === 0) return;
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
+    // Sky-glow scale: brightness (V = 0 flux per steradian) -> pixel value,
+    // matched to the stars' PSF so a patch of glow and a point star carry the
+    // same energy per unit flux.
+    const pixelAngle = THREE.MathUtils.degToRad(camera.fov) / (h * pixelRatio);
+    const psfArea = 2 * Math.PI * (STAR_PSF_SIGMA_PX * pixelRatio) ** 2;
+    glowScale = SKY_EXPOSURE * psfArea * pixelAngle * pixelAngle * GLOW_UNRESOLVED_BOOST;
     renderer.setSize(w, h);
     composer.setSize(w, h);
   }
@@ -860,6 +1043,7 @@ function mountStarScene(container) {
     elapsed = frozen ? testMode.frozenTime : elapsed + delta;
     // free-running motion (spin, drift, slow growth) stops in test mode
     const motion = frozen ? 0 : 1;
+    if (!frozen) noteFrameTime(delta);
     for (const u of timeUniforms) u.value = elapsed;
 
     const latest = container._uniSimuLatest;
@@ -884,6 +1068,14 @@ function mountStarScene(container) {
     const physical = latest.renderMode === "physical" && Array.isArray(latest.surfaceColor);
     const toneMapping = physical ? THREE.NeutralToneMapping : THREE.NoToneMapping;
     if (renderer.toneMapping !== toneMapping) renderer.toneMapping = toneMapping;
+    const useCatalog = physical && catalog !== null;
+    starfield.points.visible = !useCatalog;
+    starfield.material.uniforms.uTwinkle.value = physical ? 0 : 1;
+    if (catalog) {
+      catalog.points.visible = useCatalog;
+      catalog.glow.visible = useCatalog;
+      catalog.glow.material.uniforms.uScale.value = glowScale;
+    }
     if (physical) {
       const surfaceLuminance = latest.surfaceLuminance ?? 0;
       targetIntensity = latest.exposureMode === "fixed"
@@ -1093,6 +1285,8 @@ function mountStarScene(container) {
   rafId = requestAnimationFrame(animate);
 
   teardown = () => {
+    disposed = true;
+    catalog?.dispose();
     cancelAnimationFrame(rafId);
     resizeObserver.disconnect();
     renderer.domElement.removeEventListener("webglcontextlost", onContextLost);
