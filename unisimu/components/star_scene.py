@@ -50,6 +50,10 @@ class StarScene(rx.NoSSRComponent):
     # Optional (realism Phase 5): death scenes.
     nebula_color: rx.Var[list[float]]
     illustrative_effects: rx.Var[bool]
+    # Optional (realism Phase 4): black-hole lensing.
+    bh_params: rx.Var[list[float]]
+    bh_color_table: rx.Var[list[float]]
+    bh_disk: rx.Var[bool]
 
 
 star_scene = StarScene.create

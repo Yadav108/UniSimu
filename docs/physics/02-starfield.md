@@ -38,6 +38,13 @@ Its brightest region falls at RA ≈ 11.4 h, Dec ≈ −60°: Carina and Crux, t
 
 The glow is matched to the stars' energy scale: one unit of flux spread as glow carries the same total pixel energy as one unit of flux in a star's PSF.
 
+## Update from Phase 4
+The first real render, in the Phase 4 shader harness, showed the glow as brown horizontal streaks, which was wrong. Two changes fixed it:
+- **Smoothing.** The builder smoothed only along RA. It now scatters each cell's *flux* evenly over a ±2-row patch that widens toward the poles, then divides by solid angle. Total flux is still exactly conserved (tested).
+- **Boost.** `GLOW_UNRESOLVED_BOOST` was 150, which was too strong. It is now **50**.
+
+`assets/starfield.bin` has been rebuilt with the new smoothing.
+
 ## Known simplifications
 - **Sky exposure is independent of the star's exposure.** A real camera exposed for a nearby star's surface would record a **black sky**: background stars are many orders of magnitude fainter. The sky uses its own fixed exposure (`SKY_EXPOSURE`, chosen so that V = 6.5 stars are at the edge of visibility). This is a deliberate presentation choice.
 - **Brightness is V-band, not bolometric.** HYG's `mag` is visual magnitude, which suits a picture.

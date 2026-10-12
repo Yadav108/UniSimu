@@ -59,6 +59,9 @@ class SimState(rx.State):
     # Physical mode only: show the keyframed blast, pulsar beams and remnant
     # shells, labelled as illustration (realism Phase 5).
     illustrative_effects: bool = False
+    # Physical mode only: an isolated black hole has no luminous disc (decision
+    # D2, Sahu et al. 2022); this switches on the "with a companion" scenario.
+    bh_disk: bool = False
 
     # simulated age in years, derived each tick from the cinematic clock
     # (`_screen_seconds`, below) -- see physics.stellar.cinematic_age_years
@@ -126,6 +129,10 @@ class SimState(rx.State):
     @rx.event
     def set_illustrative_effects(self, value: bool):
         self.illustrative_effects = bool(value)
+
+    @rx.event
+    def set_bh_disk(self, value: bool):
+        self.bh_disk = bool(value)
 
     @rx.event
     def set_exposure_mode(self, value: str | list[str]):

@@ -132,6 +132,12 @@ def _look_control() -> rx.Component:
                     spacing="2",
                     align="center",
                 ),
+                rx.hstack(
+                    rx.switch(checked=SimState.bh_disk, on_change=SimState.set_bh_disk, size="1"),
+                    rx.text("Black hole with a companion (scenario: accretion disc)", size="1"),
+                    spacing="2",
+                    align="center",
+                ),
                 spacing="1",
                 align="start",
             ),

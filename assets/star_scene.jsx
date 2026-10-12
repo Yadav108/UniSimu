@@ -132,10 +132,24 @@ const STAR_SPRITE_PX = 7; // sprite covering about +-3.5 sigma
 // The baked glow only holds stars down to V = 9, but most of the Milky Way's
 // light comes from far fainter, unresolved stars. This factor stands in for
 // them so the band shows at all: an approximation, not a measurement.
-const GLOW_UNRESOLVED_BOOST = 150;
+const GLOW_UNRESOLVED_BOOST = 50;
 // Quality tiers: brightest-first subsets of the catalogue, stepped down (never
 // back up) when frames average slower than SLOW_FRAME_MS.
-const QUALITY_TIERS = [{ starMagLimit: 6.5 }, { starMagLimit: 5.5 }, { starMagLimit: 4.5 }];
+// The black-hole lens adds a per-pixel ray-march (steps) and a sky cube map.
+const QUALITY_TIERS = [
+  { starMagLimit: 6.5, rayMarchSteps: 240, skyCubeSize: 1024 },
+  { starMagLimit: 5.5, rayMarchSteps: 160, skyCubeSize: 512 },
+  { starMagLimit: 4.5, rayMarchSteps: 96, skyCubeSize: 256 },
+];
+// Orbital angle each lens ray may sweep before it counts as captured. Rays
+// that circle the photon sphere longer than this are drawn dark; that makes
+// the shadow ~0.05 deg too large -- under one screen pixel (see the note).
+const LENS_PHI_SPAN = 2.5 * Math.PI;
+const SKY_LAYER = 1; // objects the sky cube camera sees
+// Companion-disc scenario: auto exposure puts the disc's peak at this level,
+// below saturation, so its temperature falloff and Doppler asymmetry show.
+const DISK_AUTO_LEVEL = 0.35;
+const DISK_FRAME_MARGIN = 1.2; // frame the disc's outer edge with some room
 const SLOW_FRAME_MS = 25;
 
 // Stellar surface (physical mode). The physics -- limb-darkening coefficients,
@@ -422,6 +436,113 @@ void main() {
   float a = 1.0 - smoothstep(0.0, 1.0, d);
   a *= a;
   gl_FragColor = vec4(vColor * a * vTwinkle, 1.0);
+}
+`;
+
+// Black hole, physical mode (realism Phase 4): a sky sphere whose every pixel
+// traces its light ray backward through the Schwarzschild photon-orbit
+// equation u'' = 3 M u^2 - u (u = 1/r, ' = d/dphi), with RK4 in phi -- the same
+// integrator as unisimu/physics/relativity.py:trace_ray, which the tests check
+// against Synge's shadow formula and the weak-field bending 4M/b. Black hole at
+// the origin, camera treated as a static observer. A ray that falls through
+// r = 2M is black (the shadow); one that escapes samples the unlensed sky in
+// its bent direction; with the companion-disc scenario on, a ray crossing the
+// disc plane between the ISCO and the outer edge returns the disc's blackbody
+// colour at the shifted temperature g T (Liouville: a shifted blackbody is a
+// blackbody), with g from the circular-orbit redshift.
+const BH_LENS_VERT = `
+varying vec3 vWorld;
+void main() {
+  vec4 world = modelMatrix * vec4(position, 1.0);
+  vWorld = world.xyz;
+  gl_Position = projectionMatrix * viewMatrix * world;
+}
+`;
+const BH_LENS_FRAG = `
+#define MAX_STEPS 256
+uniform samplerCube uSky;
+uniform float uM, uHorizonFactor, uRin, uRout, uDiskOn, uDiskPeakT, uDiskScale, uSteps, uPhiSpan;
+uniform vec3 uDiskAxis;
+uniform vec4 uBB[64];
+uniform vec2 uLogT;
+varying vec3 vWorld;
+
+// blackbody colour x visible luminance at temperature t (table from Python)
+vec3 blackbody(float t) {
+  float x = clamp((log(max(t, 1.0)) / log(10.0) - uLogT.x) / (uLogT.y - uLogT.x), 0.0, 1.0) * 63.0;
+  int i = int(floor(x));
+  int j = min(i + 1, 63);
+  vec4 c = mix(uBB[i], uBB[j], x - float(i));
+  return c.rgb * pow(10.0, c.a);
+}
+
+// thin disc: T^4 ~ r^-3 (1 - sqrt(rin / r)), peaking at r = 49/36 rin
+float diskT(float r) {
+  if (r <= uRin) return 0.0;
+  float rp = 49.0 / 36.0 * uRin;
+  float shape = pow(r, -3.0) * (1.0 - sqrt(uRin / r));
+  float peak = pow(rp, -3.0) * (1.0 - sqrt(uRin / rp));
+  return uDiskPeakT * pow(shape / peak, 0.25);
+}
+
+float accel(float u) { return 3.0 * uM * u * u - u; }
+
+void main() {
+  vec3 C = cameraPosition;
+  float rc = length(C);
+  vec3 x = C / rc;
+  vec3 d = normalize(vWorld - cameraPosition);
+  float cosA = dot(d, x);
+  vec3 y = d - cosA * x;
+  float sinA = length(y);
+  y = sinA > 1e-6 ? y / sinA : normalize(cross(x, vec3(0.3, 1.0, 0.2)));
+  sinA = max(sinA, 1e-6);
+  float u = 1.0 / rc;
+  float w = -u * sqrt(max(1.0 - 2.0 * uM * u, 0.0)) * cosA / sinA;
+  float uHorizon = 1.0 / (uHorizonFactor * uM);
+  float h = uPhiSpan / uSteps;
+  // disc plane seen in the ray's plane: f(phi) = a cos(phi) + c sin(phi) = 0
+  float a = dot(x, uDiskAxis);
+  float c = dot(y, uDiskAxis);
+  // photon angular momentum about the disc axis per unit energy (the light
+  // travels toward the camera, opposite to this backward trace)
+  float b = rc * sinA / sqrt(1.0 - 2.0 * uM / rc);
+  float lam = -b * dot(cross(x, y), uDiskAxis);
+  float phi = 0.0;
+  float fPrev = a;
+  for (int i = 0; i < MAX_STEPS; i++) {
+    if (float(i) >= uSteps) break;
+    float k1u = w;               float k1w = accel(u);
+    float k2u = w + 0.5 * h * k1w; float k2w = accel(u + 0.5 * h * k1u);
+    float k3u = w + 0.5 * h * k2w; float k3w = accel(u + 0.5 * h * k2u);
+    float k4u = w + h * k3w;       float k4w = accel(u + h * k3u);
+    float uN = u + h / 6.0 * (k1u + 2.0 * k2u + 2.0 * k3u + k4u);
+    float wN = w + h / 6.0 * (k1w + 2.0 * k2w + 2.0 * k3w + k4w);
+    float phiN = phi + h;
+    if (uDiskOn > 0.5) {
+      float fN = a * cos(phiN) + c * sin(phiN);
+      if (fPrev * fN < 0.0) {
+        float uc = mix(u, uN, fPrev / (fPrev - fN));
+        float r = uc > 0.0 ? 1.0 / uc : 1e9;
+        if (r >= uRin && r <= uRout) {
+          float omega = sqrt(uM / (r * r * r));
+          float g = sqrt(1.0 - 3.0 * uM / r) / (1.0 - omega * lam) / sqrt(1.0 - 2.0 * uM / rc);
+          gl_FragColor = vec4(blackbody(g * diskT(r)) * uDiskScale, 1.0);
+          return;
+        }
+      }
+      fPrev = fN;
+    }
+    if (uN >= uHorizon) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
+    if (uN <= 0.0) {
+      float phiEscape = phi + h * u / (u - uN);
+      vec3 dir = cos(phiEscape) * x + sin(phiEscape) * y;
+      gl_FragColor = vec4(textureCube(uSky, dir).rgb, 1.0);
+      return;
+    }
+    u = uN; w = wN; phi = phiN;
+  }
+  gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
 }
 `;
 
@@ -853,8 +974,10 @@ function mountStarScene(container) {
   // or if the file is missing, the procedural sky stands in (without twinkle).
   let catalog = null;
   let disposed = false;
+  let skyCubeDirty = true;
   let qualityTier = 0;
   function applyQuality() {
+    skyCubeDirty = true;
     if (!catalog) return;
     const limit = QUALITY_TIERS[qualityTier].starMagLimit;
     let n = 0;
@@ -867,6 +990,8 @@ function mountStarScene(container) {
       catalog = loaded;
       catalog.points.visible = false;
       catalog.glow.visible = false;
+      catalog.points.layers.enable(SKY_LAYER);
+      catalog.glow.layers.enable(SKY_LAYER);
       scene.add(catalog.points, catalog.glow);
       applyQuality();
     })
@@ -971,6 +1096,38 @@ function mountStarScene(container) {
   scene.add(jets);
 
   // Black hole: opaque horizon, hot Doppler-shifted disk, and the lens.
+  // Physical black hole: the unlensed sky is rendered once into a cube map
+  // (only objects on SKY_LAYER), and the lens sphere bends it per pixel.
+  starfield.points.layers.enable(SKY_LAYER);
+  let skyCube = null;
+  let skyCubeCamera = null;
+  function makeSkyCube(size) {
+    skyCube?.dispose();
+    skyCube = new THREE.WebGLCubeRenderTarget(size, { type: THREE.HalfFloatType });
+    skyCubeCamera = new THREE.CubeCamera(1, 500, skyCube);
+    for (const child of skyCubeCamera.children) child.layers.set(SKY_LAYER);
+    bhLensMaterial.uniforms.uSky.value = skyCube.texture;
+  }
+  const bhLensMaterial = track(shaderMaterial({
+    vertex: BH_LENS_VERT,
+    fragment: BH_LENS_FRAG,
+    additive: false,
+    side: THREE.BackSide,
+    uniforms: {
+      uSky: { value: null }, uM: { value: HORIZON_RADIUS / 2 }, uHorizonFactor: { value: 2 },
+      uRin: { value: 6 }, uRout: { value: 20 }, uDiskOn: { value: 0 }, uDiskPeakT: { value: 1e7 },
+      uDiskScale: { value: 1 }, uSteps: { value: QUALITY_TIERS[0].rayMarchSteps }, uPhiSpan: { value: LENS_PHI_SPAN },
+      uDiskAxis: { value: new THREE.Vector3(0, 1, 0) },
+      uBB: { value: Array.from({ length: 64 }, () => new THREE.Vector4()) }, uLogT: { value: new THREE.Vector2(3, 8) },
+    },
+  }));
+  bhLensMaterial.depthWrite = false;
+  const bhLens = new THREE.Mesh(track(new THREE.SphereGeometry(96, 64, 32)), bhLensMaterial);
+  bhLens.visible = false;
+  bhLens.renderOrder = -1;
+  scene.add(bhLens);
+  let bhTableLoaded = false;
+
   const horizonGeometry = track(new THREE.SphereGeometry(1, 48, 48));
   const horizonMaterial = track(new THREE.MeshBasicMaterial({ color: 0x000000 }));
   const horizon = new THREE.Mesh(horizonGeometry, horizonMaterial);
@@ -1335,6 +1492,56 @@ function mountStarScene(container) {
     lens.scale.setScalar(displayRadius * 6);
     lensMaterial.uniforms.uOpacity.value = blackHoleOpacity;
 
+    // Physical: real lensing replaces the stylized horizon, disc and lens.
+    const bhParams = latest.bhParams;
+    const lensActive = physical && isBlackHole && Array.isArray(latest.bhColorTable) && Array.isArray(bhParams);
+    bhLens.visible = lensActive;
+    if (lensActive) {
+      horizon.visible = false;
+      blackHoleDisk.visible = false;
+      lens.visible = false;
+      const tier = QUALITY_TIERS[qualityTier];
+      const u = bhLensMaterial.uniforms;
+      if (!bhTableLoaded) {
+        const t = latest.bhColorTable;
+        u.uBB.value.forEach((v, i) => v.set(t[4 * i], t[4 * i + 1], t[4 * i + 2], t[4 * i + 3]));
+        bhTableLoaded = true;
+      }
+      if (!skyCube || skyCube.width !== tier.skyCubeSize) makeSkyCube(tier.skyCubeSize);
+      if (skyCubeDirty) {
+        // the sky as it would look without the hole: catalogue (or procedural)
+        // stars and glow, no twinkle, seen from the hole's position
+        const showCatalog = catalog !== null;
+        starfield.points.visible = !showCatalog;
+        if (catalog) {
+          catalog.points.visible = showCatalog;
+          catalog.glow.visible = showCatalog;
+        }
+        skyCubeCamera.update(renderer, scene);
+        skyCubeDirty = false;
+      }
+      starfield.points.visible = false;
+      if (catalog) {
+        catalog.points.visible = false;
+        catalog.glow.visible = false;
+      }
+      // the horizon is drawn at HORIZON_RADIUS in the scene, so the lens's mass
+      // is set by it: images depend only on r / M, so this keeps them exact
+      const [horizonFactor, iscoFactor, outerFactor, peakT, peakLuminance] = bhParams;
+      u.uM.value = displayRadius / horizonFactor;
+      u.uHorizonFactor.value = horizonFactor;
+      u.uRin.value = iscoFactor * u.uM.value;
+      u.uRout.value = outerFactor * u.uM.value;
+      u.uDiskOn.value = latest.bhDisk === true ? 1 : 0;
+      u.uDiskPeakT.value = peakT;
+      u.uDiskScale.value = latest.exposureMode === "fixed" ? PHYSICAL_FIXED_EXPOSURE : DISK_AUTO_LEVEL / peakLuminance;
+      u.uSteps.value = tier.rayMarchSteps;
+      u.uDiskAxis.value.set(0, 0, 1).applyEuler(blackHoleDisk.rotation).normalize();
+    } else {
+      // render the sky cube afresh on the next activation (mode or sky may differ)
+      skyCubeDirty = true;
+    }
+
     // --- bloom: the flash briefly overexposes everything ------------------
     if (physical) {
       // camera glare: one energy-conserving point-spread function for all light
@@ -1354,6 +1561,10 @@ function mountStarScene(container) {
     if (gas.opacity > 0.05 && !isRemnantStage) frame = Math.max(frame, gas.scale * 0.55);
     if (pulsarOpacity > 0.05) frame = Math.max(frame, 2.6);
     if (blackHoleOpacity > 0.05) frame = Math.max(frame, 2.5);
+    // physical companion disc: step back far enough to see its outer edge
+    if (bhLens.visible && latest.bhDisk === true) {
+      frame = Math.max(frame, DISK_FRAME_MARGIN * bhLensMaterial.uniforms.uRout.value);
+    }
     if (dustOpacity > 0.05) frame = Math.max(frame, displayRadius * 2.6);
     if (isSupernova) frame = Math.max(frame, 1.5 + 3.4 * easeOutCubic(clamp((p - 0.05) / 0.6, 0, 1)));
     autoDistance = clamp(3 + frame * 2.3, 2.6, 22);
@@ -1387,6 +1598,7 @@ function mountStarScene(container) {
   teardown = () => {
     disposed = true;
     catalog?.dispose();
+    skyCube?.dispose();
     cancelAnimationFrame(rafId);
     resizeObserver.disconnect();
     renderer.domElement.removeEventListener("webglcontextlost", onContextLost);
@@ -1407,12 +1619,14 @@ export function StarScene({
   radius, color, stage, luminosity, progress, surfaceColor, surfaceLuminance, renderMode, exposureMode,
   limbDarkening, granulationCells, granulationAmplitude, temperatureSensitivity, spotContrast,
   pulsationPeriodDays, glare, coronagraph, convection, nebulaColor, illustrativeEffects,
+  bhParams, bhColorTable, bhDisk,
 }) {
   if (mountedContainer) {
     mountedContainer._uniSimuLatest = {
       radius, color, stage, luminosity, progress, surfaceColor, surfaceLuminance, renderMode, exposureMode,
       limbDarkening, granulationCells, granulationAmplitude, temperatureSensitivity, spotContrast,
       pulsationPeriodDays, glare, coronagraph, convection, nebulaColor, illustrativeEffects,
+      bhParams, bhColorTable, bhDisk,
     };
   }
   return <div ref={mountStarScene} style={{ width: "100%", height: "100%" }} />;

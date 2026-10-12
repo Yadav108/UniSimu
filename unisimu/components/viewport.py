@@ -5,7 +5,21 @@ aesthetic and minimalist design)."""
 import reflex as rx
 
 from unisimu.components.star_scene import star_scene
+from unisimu.physics import relativity
+from unisimu.physics.blackbody import blackbody_display_color
 from unisimu.physics.death import emission_line_color
+
+# Constants of the black-hole optics, passed once (they never change):
+# horizon, ISCO and disc-edge radii in units of M, and the companion-disc
+# scenario's peak temperature with its visible luminance.
+_BH_PARAMS = [
+    relativity.HORIZON_RADIUS_M,
+    relativity.ISCO_RADIUS_M,
+    relativity.DISK_OUTER_RADIUS_M,
+    relativity.DISK_PEAK_TEMPERATURE_K,
+    blackbody_display_color(relativity.DISK_PEAK_TEMPERATURE_K)[1],
+]
+_BH_COLOR_TABLE = relativity.blackbody_color_table()
 from unisimu.state import SimState
 from unisimu.theme import MONO, SERIF
 
@@ -76,6 +90,9 @@ def viewport() -> rx.Component:
             # planetary-nebula emission-line colour: a constant of the physics
             nebula_color=list(emission_line_color()),
             illustrative_effects=SimState.illustrative_effects,
+            bh_params=_BH_PARAMS,
+            bh_color_table=_BH_COLOR_TABLE,
+            bh_disk=SimState.bh_disk,
         ),
         _caption_overlay(),
         position="relative",
