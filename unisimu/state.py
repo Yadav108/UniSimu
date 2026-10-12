@@ -9,8 +9,9 @@ from reflex.event import KeyInputInfo
 
 from unisimu import hr_geometry
 from unisimu.copy import STAGE_CAPTIONS, STAGE_LABELS
-from unisimu.formatting import format_scientific
+from unisimu.formatting import format_duration, format_scientific
 from unisimu.physics import surface
+from unisimu.physics.timekeeping import stage_clock
 from unisimu.physics.blackbody import blackbody_display_color
 from unisimu.physics.stellar import (
     SUN_RADIUS_KM,
@@ -237,6 +238,24 @@ class SimState(rx.State):
         if years < 1e9:
             return f"{years / 1e6:,.2f} Myr"
         return f"{years / 1e9:,.2f} Gyr"
+
+    # --- time honesty (docs/physics/06-time.md) -----------------------------
+
+    @rx.var(cache=True)
+    def stage_time_display(self) -> str:
+        """Real time spent in the current timed phase, e.g. '5 Gyr of 10 Gyr'."""
+        clock = stage_clock(self.mass_msun, self.age_years)
+        if clock.stage_duration_years is None:
+            return "remnant (clock stopped)"
+        return f"{format_duration(clock.stage_elapsed_years)} of {format_duration(clock.stage_duration_years)}"
+
+    @rx.var(cache=True)
+    def clock_rate_display(self) -> str:
+        """How much real time one second on screen stands for, at the current speed."""
+        rate = stage_clock(self.mass_msun, self.age_years).years_per_screen_second * self.speed_multiplier
+        if rate <= 0:
+            return "stopped"
+        return f"1 s = {format_duration(rate)}"
 
     @rx.var(cache=True)
     def is_terminal(self) -> bool:
