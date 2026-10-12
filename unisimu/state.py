@@ -19,6 +19,7 @@ from unisimu.physics.stellar import (
     StellarSnapshot,
     cinematic_age_years,
     evolve,
+    phase_schedule,
     stage_track,
 )
 
@@ -62,6 +63,9 @@ class SimState(rx.State):
     # Physical mode only: an isolated black hole has no luminous disc (decision
     # D2, Sahu et al. 2022); this switches on the "with a companion" scenario.
     bh_disk: bool = False
+    # White dwarf only (issue #12): time since it formed, as log10(years). The
+    # play loop stops once the star is a remnant, so cooling is explored by hand.
+    remnant_log_age: float = 0.0
 
     # simulated age in years, derived each tick from the cinematic clock
     # (`_screen_seconds`, below) -- see physics.stellar.cinematic_age_years
@@ -135,6 +139,16 @@ class SimState(rx.State):
         self.bh_disk = bool(value)
 
     @rx.event
+    def set_remnant_age(self, value: list[float]):
+        """Age a white dwarf along its Mestel cooling curve."""
+        if self.stage != "white_dwarf":
+            return
+        self.remnant_log_age = float(value[0])
+        remnant_start = phase_schedule(self.mass_msun)[-1][1]
+        self.age_years = remnant_start + 10**self.remnant_log_age
+        self._apply_snapshot(evolve(self.mass_msun, self.age_years))
+
+    @rx.event
     def set_exposure_mode(self, value: str | list[str]):
         chosen = value[0] if isinstance(value, list) else value
         if chosen in EXPOSURE_MODES:
@@ -175,6 +189,7 @@ class SimState(rx.State):
         self.age_years = 0.0
         self._screen_seconds = 0.0
         self._run_id += 1
+        self.remnant_log_age = 0.0
         self._apply_snapshot(evolve(self.mass_msun, 0.0))
         self.event_flag = ""
         self._clear_caption()
@@ -260,7 +275,7 @@ class SimState(rx.State):
         """Real time spent in the current timed phase, e.g. '5 Gyr of 10 Gyr'."""
         clock = stage_clock(self.mass_msun, self.age_years)
         if clock.stage_duration_years is None:
-            return "remnant (clock stopped)"
+            return f"{format_duration(clock.stage_elapsed_years)} since it formed"
         return f"{format_duration(clock.stage_elapsed_years)} of {format_duration(clock.stage_duration_years)}"
 
     @rx.var(cache=True)
