@@ -122,6 +122,16 @@ def _look_control() -> rx.Component:
                     spacing="2",
                     align="center",
                 ),
+                rx.hstack(
+                    rx.switch(
+                        checked=SimState.illustrative_effects,
+                        on_change=SimState.set_illustrative_effects,
+                        size="1",
+                    ),
+                    rx.text("Illustrative effects (blast, pulsar beams, remnant shell)", size="1"),
+                    spacing="2",
+                    align="center",
+                ),
                 spacing="1",
                 align="start",
             ),
