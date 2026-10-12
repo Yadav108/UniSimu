@@ -37,6 +37,8 @@ STAR = struct.Struct("<7f")
 DEFAULT_MAG_LIMIT = 6.5
 DEFAULT_GLOW_LIMIT = 9.0
 GLOW_W, GLOW_H = 128, 64
+GLOW_SMOOTH_ROWS = 2  # +-2 rows (~11 deg in Dec)
+GLOW_SMOOTH_COLS = 2  # +-2 columns at the equator, wider toward the poles
 # Ballesteros' formula has a pole at B-V = -0.674; real stars sit well inside this range.
 BV_RANGE = (-0.4, 2.0)
 
@@ -79,20 +81,34 @@ def build(rows, mag_limit: float = DEFAULT_MAG_LIMIT, glow_limit: float = DEFAUL
     out = bytearray(HEADER.pack(MAGIC, len(stars), mag_limit, GLOW_W, GLOW_H))
     for flux, direction, colour in stars:
         out += STAR.pack(*direction, *colour, flux)
+    # Spread each cell's flux evenly over a patch of neighbouring cells, then
+    # divide by solid angle. Scattering *flux* conserves the total exactly.
+    # The patch is GLOW_SMOOTH_ROWS rows tall and, because cells shrink toward
+    # the poles (solid angle ~ cos Dec), ~1/cos(Dec) times wider there, so a
+    # lone faint star never becomes a spike or a streak.
     d_ra = 2 * math.pi / GLOW_W
+    solid_angles = []
     for row in range(GLOW_H):
         dec_top = math.pi / 2 - row * math.pi / GLOW_H
-        dec_bottom = dec_top - math.pi / GLOW_H
-        solid_angle = d_ra * (math.sin(dec_top) - math.sin(dec_bottom))
-        # Cells shrink toward the poles (solid angle ~ cos Dec), so one star
-        # there would make a spike. Average over ~1/cos(Dec) columns instead,
-        # keeping every estimate's solid angle roughly equal.
-        cos_dec = math.cos((dec_top + dec_bottom) / 2)
-        half = min(GLOW_W // 2, round(0.5 / max(cos_dec, 1.0 / GLOW_W)))
+        solid_angles.append(d_ra * (math.sin(dec_top) - math.sin(dec_top - math.pi / GLOW_H)))
+    smoothed = [[0.0, 0.0, 0.0] for _ in range(GLOW_W * GLOW_H)]
+    for row in range(GLOW_H):
+        cos_dec = math.cos(math.pi / 2 - (row + 0.5) * math.pi / GLOW_H)
+        half_cols = min(GLOW_W // 2, max(GLOW_SMOOTH_COLS, round(GLOW_SMOOTH_COLS / max(cos_dec, 1e-3))))
+        rows = range(max(row - GLOW_SMOOTH_ROWS, 0), min(row + GLOW_SMOOTH_ROWS, GLOW_H - 1) + 1)
+        share = 1.0 / (len(rows) * (2 * half_cols + 1))
         for col in range(GLOW_W):
-            cells = [glow[row * GLOW_W + (col + k) % GLOW_W] for k in range(-half, half + 1)]
-            area = solid_angle * len(cells)
-            out += struct.pack("<3f", *(sum(c[i] for c in cells) / area for i in range(3)))
+            flux = glow[row * GLOW_W + col]
+            if not any(flux):
+                continue
+            for r in rows:
+                for k in range(-half_cols, half_cols + 1):
+                    target = smoothed[r * GLOW_W + (col + k) % GLOW_W]
+                    for i in range(3):
+                        target[i] += flux[i] * share
+    for row in range(GLOW_H):
+        for col in range(GLOW_W):
+            out += struct.pack("<3f", *(v / solid_angles[row] for v in smoothed[row * GLOW_W + col]))
     return bytes(out)
 
 
