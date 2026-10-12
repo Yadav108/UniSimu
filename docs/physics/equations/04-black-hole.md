@@ -118,3 +118,18 @@ On screen, the horizon must be drawn at r_h = 2M relative to the camera distance
 - g → 1 as r → ∞ with λ = 0.
 - g⁴ ratio of approaching to receding sides vs the formula.
 - No disc when the flag is off.
+
+## 8. Phase 4 verification (sources opened while implementing)
+- **Shadow size (verified).** Synge's formula for a static observer at r_O is
+  sin α_sh = 3√3 M √(1 − 2M/r_O) / r_O
+  (Perlick & Tsupko 2022, *Calculating black hole shadows*, arXiv:2105.07101, Eqs. 2 and 6, opened). It tends to b_c/r_O far away.
+- **Disc redshift (verified).** Bruneton 2020, Eq. 13, gives the circular-orbit emitter 4-velocity in r_s units: k′ = (√(2/(2−3u)), 0, 0, √(u³/(2−3u))). In M units that is u^t = 1/√(1−3M/r) and Ω = √(M/r³). His Eq. 14 and the remark "for black bodies … T′ = (ν/ν′) T" confirm the formula derived in §4,
+  g = √(1−3M/r) / (1 − Ωλ),
+  and that a blackbody disc is seen as a blackbody at gT.
+- **Integrator (verified against both).** `relativity.trace_ray` runs RK4 on u″ = 3Mu² − u. Two checks:
+  - The traced shadow edge matches Synge's formula to 4 decimal places at 10, 30 and 100 M.
+  - The bending at b = 1000 M is 4M/b within 0.3 %.
+  The GLSL shader uses the identical scheme. In a GPU render, the shadow measured **113.0 px against Synge's 112.3 px** at r = 29 M (see the phase note).
+- **Disc temperature.** Still the simplified T⁴ ∝ r⁻³(1 − √(r_in/r)) profile from Bruneton §3.3.3. **Not** full Novikov–Thorne; Page & Thorne (1974) was not opened.
+- **Companion-disc peak temperature.** 10⁷ K (~1 keV) is an **unverified** order of magnitude, used as a labelled scenario parameter.
+

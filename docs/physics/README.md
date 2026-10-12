@@ -12,12 +12,13 @@ The cited equations behind every phase are in [`equations/`](equations/README.md
 | 3: Stellar surface | `realism/phase-3-surface` | ✅ Complete (browser check pending) | [03-surface.md](03-surface.md) |
 | 6: Time honesty | `realism/phase-6-time` | ✅ Complete (browser check pending) | [06-time.md](06-time.md) |
 | 5: Death scenes | `realism/phase-5-death-scenes` | ✅ Complete (browser check pending) | [05-death-scenes.md](05-death-scenes.md) |
-| 4: Black hole | — | ⏳ Next | — |
-| 7: MIST tracks (optional) | — | Planned | — |
+| 4: Black hole | `realism/phase-4-black-hole` | ✅ Complete (GPU-rendered; last two fixes not re-rendered) | [04-black-hole.md](04-black-hole.md) |
+| 7: MIST tracks (optional) | — | ⏳ Next (needs decision D6: MIST data licence) | — |
 
 The order 1 → 2 → 3 → 6 → 5 → 4 → (7) is deliberate: the death scenes need the supernova day clock from Phase 6.
 
 ## Open items carried forward
+- **Shader harness:** `tests/visual/render_scenarios.py` renders the scene without Reflex and needs far less memory than `reflex run`. Its first run in Phase 4 compiled every shader from Phases 1–5 with **0 console errors** and rendered all 11 scenarios. Re-run it to confirm the Phase 4 glow and disc-framing fixes.
 - **Phase 5 browser check:** the supernova plateau reads `1 s = 40 d`, the green-cyan planetary nebula, the true-scale neutron star, and the Illustrative-effects switch (05-death-scenes.md).
 - **Phase 6 browser check:** the Time rows read `1 s = 500 Myr` on the Sun's main sequence and `1 s = 2.1 kyr` at its planetary nebula (06-time.md).
 - **Phase 3 browser check:** the hand checklist in 03-surface.md (limb darkening, granule sizes, coronagraph, glare, pulsation readout).
