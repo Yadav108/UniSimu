@@ -21,7 +21,7 @@ simulated age with a fixed on-screen duration per phase instead.
 import math
 from dataclasses import dataclass
 
-from unisimu.physics import death
+from unisimu.physics import death, remnants
 from unisimu.physics.blackbody import kelvin_to_hex
 
 SUN_TEMPERATURE_K = 5778.0
@@ -36,6 +36,10 @@ POST_MS_FRACTION = 0.10
 SUPERNOVA_YEARS = death.SUPERNOVA_LIGHT_CURVE_DAYS / death.DAYS_PER_YEAR
 PLANETARY_NEBULA_YEARS = death.PLANETARY_NEBULA_VISIBLE_YEARS
 
+# Below 0.25 M_sun a star never becomes a red giant: it stays small, heats
+# up into a "blue dwarf" and ends as a helium white dwarf (Laughlin,
+# Bodenheimer & Adams 1997; Adams, Laughlin & Graves 2004) -- issue #11.
+RED_DWARF_MASS_THRESHOLD = 0.25
 SUPERGIANT_MASS_THRESHOLD = 8.0
 BLACK_HOLE_MASS_THRESHOLD = 20.0
 
@@ -52,8 +56,17 @@ RED_SUPERGIANT_BRIGHTENING = 2.5
 # constant luminosity before nuclear burning shuts off.
 PLANETARY_NEBULA_CORE_TEMPERATURE_K = 1.0e5
 PLANETARY_NEBULA_FADE_FRACTION = 0.01
-WHITE_DWARF_TEMPERATURE_K = 25000.0
+# A white dwarf keeps a fixed radius and cools along the Mestel law
+# (physics/remnants.py) -- issue #12. Its temperature follows from L and R.
 WHITE_DWARF_RADIUS_RSUN = 0.012
+
+# Blue dwarf (Laughlin, Bodenheimer & Adams 1997, 0.10 M_sun model): it heats to
+# at most 5807 K and is "never ... more than ~1% as bright" as the Sun, then
+# turns toward the white-dwarf track. That turn is simplified here: the star
+# shrinks to the white-dwarf radius at its peak temperature (so it never gets
+# hotter than 5807 K), over a span equal to its heating phase.
+BLUE_DWARF_PEAK_TEMPERATURE_K = 5807.0
+BLUE_DWARF_PEAK_LUMINOSITY_LSUN = 0.01
 
 # The supernova light curve lives in physics/death.py (Type II-P model).
 
@@ -72,6 +85,7 @@ SCREEN_SECONDS_TERMINAL_FLASH = 10.0
 STAGES = (
     "protostar",
     "main_sequence",
+    "blue_dwarf",
     "red_giant",
     "red_supergiant",
     "supernova",
@@ -84,6 +98,7 @@ STAGES = (
 TERMINAL_STAGES = frozenset({"white_dwarf", "neutron_star", "black_hole"})
 
 LOW_MASS_TRACK = ("protostar", "main_sequence", "red_giant", "planetary_nebula", "white_dwarf")
+RED_DWARF_TRACK = ("protostar", "main_sequence", "blue_dwarf", "white_dwarf")
 NEUTRON_STAR_TRACK = ("protostar", "main_sequence", "red_supergiant", "supernova", "neutron_star")
 BLACK_HOLE_TRACK = ("protostar", "main_sequence", "red_supergiant", "supernova", "black_hole")
 
@@ -111,6 +126,8 @@ _MS_TEMPERATURE_ANCHORS = (
 def stage_track(mass_msun: float) -> tuple[str, ...]:
     """The ordered sequence of life stages this mass will pass through,
     for driving a timeline/progress UI."""
+    if mass_msun < RED_DWARF_MASS_THRESHOLD:
+        return RED_DWARF_TRACK
     if mass_msun < SUPERGIANT_MASS_THRESHOLD:
         return LOW_MASS_TRACK
     if mass_msun < BLACK_HOLE_MASS_THRESHOLD:
@@ -184,7 +201,12 @@ def _red_giant_tip_luminosity(ms_luminosity: float) -> float:
 def terminal_flash_years(mass_msun: float) -> float:
     """Real duration of the last timed phase: the supernova's shown light
     curve for massive stars, the planetary nebula's visible life otherwise."""
-    return SUPERNOVA_YEARS if mass_msun >= SUPERGIANT_MASS_THRESHOLD else PLANETARY_NEBULA_YEARS
+    if mass_msun >= SUPERGIANT_MASS_THRESHOLD:
+        return SUPERNOVA_YEARS
+    if mass_msun < RED_DWARF_MASS_THRESHOLD:
+        # a blue dwarf's fade onto the white-dwarf track (illustrative length)
+        return main_sequence_lifetime_years(mass_msun) * POST_MS_FRACTION
+    return PLANETARY_NEBULA_YEARS
 
 
 def _black_hole_snapshot(mass_msun: float) -> StellarSnapshot:
@@ -234,6 +256,12 @@ def evolve(mass_msun: float, age_years: float) -> StellarSnapshot:
 
     age_post_ms = age_ms - ms_lifetime
 
+    # --- Red dwarfs: no giant phase, a blue dwarf instead (issue #11) ---
+    if m < RED_DWARF_MASS_THRESHOLD:
+        return _red_dwarf_after_main_sequence(
+            age_post_ms, post_ms_duration, ms_luminosity, ms_temperature
+        )
+
     # --- Post-main-sequence: red giant / red supergiant ---
     if age_post_ms < post_ms_duration:
         frac = age_post_ms / post_ms_duration
@@ -275,9 +303,45 @@ def evolve(mass_msun: float, age_years: float) -> StellarSnapshot:
         return StellarSnapshot("planetary_nebula", radius, temperature, luminosity,
                                 kelvin_to_hex(temperature), frac)
 
-    luminosity = luminosity_from_radius_temperature(WHITE_DWARF_RADIUS_RSUN, WHITE_DWARF_TEMPERATURE_K)
-    return StellarSnapshot("white_dwarf", WHITE_DWARF_RADIUS_RSUN, WHITE_DWARF_TEMPERATURE_K,
-                            luminosity, kelvin_to_hex(WHITE_DWARF_TEMPERATURE_K), 1.0)
+    tip = _red_giant_tip_luminosity(ms_luminosity)
+    return _white_dwarf_snapshot(age_terminal - PLANETARY_NEBULA_YEARS, tip * PLANETARY_NEBULA_FADE_FRACTION)
+
+
+def _white_dwarf_snapshot(years_since_birth: float, birth_luminosity: float) -> StellarSnapshot:
+    """A white dwarf cooling along the Mestel law from the luminosity the
+    previous stage handed it; temperature from Stefan-Boltzmann at fixed R."""
+    luminosity = remnants.cooled_luminosity_lsun(years_since_birth, birth_luminosity)
+    temperature = SUN_TEMPERATURE_K * (luminosity / WHITE_DWARF_RADIUS_RSUN**2) ** 0.25
+    return StellarSnapshot("white_dwarf", WHITE_DWARF_RADIUS_RSUN, temperature,
+                            luminosity, kelvin_to_hex(temperature), 1.0)
+
+
+def _blue_dwarf_end_luminosity() -> float:
+    """Luminosity once shrunk to the white-dwarf radius at the peak temperature."""
+    return luminosity_from_radius_temperature(WHITE_DWARF_RADIUS_RSUN, BLUE_DWARF_PEAK_TEMPERATURE_K)
+
+
+def _red_dwarf_after_main_sequence(
+    age_post_ms: float, phase_years: float, ms_luminosity: float, ms_temperature: float
+) -> StellarSnapshot:
+    """Blue dwarf: heats to 5807 K while staying small (first half of its
+    stage), then shrinks onto the white-dwarf radius at that temperature
+    (second half), then cools as a white dwarf."""
+    if age_post_ms < phase_years:
+        frac = age_post_ms / phase_years
+        temperature = _geometric(ms_temperature, BLUE_DWARF_PEAK_TEMPERATURE_K, frac)
+        luminosity = _geometric(ms_luminosity, BLUE_DWARF_PEAK_LUMINOSITY_LSUN, frac)
+        progress = frac / 2
+    elif age_post_ms < 2 * phase_years:
+        frac = (age_post_ms - phase_years) / phase_years
+        temperature = BLUE_DWARF_PEAK_TEMPERATURE_K
+        luminosity = _geometric(BLUE_DWARF_PEAK_LUMINOSITY_LSUN, _blue_dwarf_end_luminosity(), frac)
+        progress = 0.5 + frac / 2
+    else:
+        return _white_dwarf_snapshot(age_post_ms - 2 * phase_years, _blue_dwarf_end_luminosity())
+    radius = radius_from_luminosity_temperature(luminosity, temperature)
+    return StellarSnapshot("blue_dwarf", radius, temperature, luminosity,
+                            kelvin_to_hex(temperature), progress)
 
 
 def phase_schedule(mass_msun: float) -> tuple[tuple[float, float, float], ...]:

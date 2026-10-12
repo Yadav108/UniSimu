@@ -120,10 +120,34 @@ def telemetry_readout() -> rx.Component:
         ),
         rx.text(
             "Each stage gets its own fixed screen time, so the clock speeds up and slows down by "
-            "factors of up to ten million. Motion on screen -- spin, pulsation, drifting "
+            "factors of up to a few million. Motion on screen -- spin, pulsation, drifting "
             "spots, expanding gas -- is on a cinematic clock, not real time.",
             size="1",
             color_scheme="gray",
+        ),
+        rx.cond(
+            SimState.stage == "white_dwarf",
+            rx.vstack(
+                rx.text("White dwarf cooling: time since it formed", weight="medium", size="2"),
+                rx.slider(
+                    min=0,
+                    max=10,
+                    step=0.05,
+                    value=[SimState.remnant_log_age],
+                    on_change=SimState.set_remnant_age,
+                    width="100%",
+                ),
+                rx.text(
+                    "Drag from 1 year to 10 billion years. It shines only by leftover heat, "
+                    "fading along the Mestel cooling law.",
+                    size="1",
+                    color_scheme="gray",
+                ),
+                spacing="1",
+                align="start",
+                width="100%",
+            ),
+            rx.fragment(),
         ),
         spacing="2",
         align="start",

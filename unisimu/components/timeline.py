@@ -14,6 +14,7 @@ from unisimu.theme import MONO, STAMP
 _STAGE_SHORT_LABELS = {
     "protostar": "Protostar",
     "main_sequence": "Main Seq.",
+    "blue_dwarf": "Blue Dwarf",
     "red_giant": "Red Giant",
     "red_supergiant": "Red Supergiant",
     "supernova": "Supernova",

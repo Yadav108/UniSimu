@@ -79,3 +79,23 @@ T_eff then follows from Stefan–Boltzmann with the WD radius (the repo uses 0.0
 | Giant L ×≤1000 | `stellar.py:41-42` | Sun ≈ 1000 L☉, ≈ 103 R☉ | Check against MIST |
 | WD | `stellar.py:50-51` | 25 kK, 0.012 R☉, fixed | Replace with Mestel cooling (§3) |
 | T☉ | `stellar.py` | 5778 K | IAU nominal value is 5772 K (doc 01 §4) |
+
+## 5. Phase 7 implementation notes (sources opened)
+- **LBA 1997 (verified).** The full text (IOP) gives, for the 0.10 M☉ model:
+  - convective for 5.74 × 10¹² yr;
+  - a radiative core forms at log L = −2.54, T = 3450 K;
+  - **maximum T_eff = 5807 K**, while "the whole star contracts";
+  - "never … more than ∼1% as bright" as the Sun;
+  - it ends as a helium white dwarf (cooled to log L = −5.287, T = 1651 K, 540 Gyr later).
+
+  The 0.16 and 0.20 M☉ models swell by 1.6× and 5.1×; 0.25 M☉ is the lowest-mass red giant.
+- **D6 decided:** no MIST data in the repo. The fixes use LBA and Mestel; MIST is an optional local reader (`unisimu/physics/mist.py`).
+- **MIST EEP layout (verified from MIST's own reader, `read_mist_models.py`):**
+  - 11 header lines; initial mass is token 1 of line 7;
+  - line 12 holds the column names;
+  - `log_Teff`, `log_L` and `phase` are confirmed;
+  - phase codes: PMS −1, MS 0, SGB+RGB 2, CHeB 3, EAGB 4, TPAGB 5, post-AGB 6, WR 9.
+
+  `star_age` is **unverified**.
+- **Mestel prefactor gap:** still open (8.3 vs 7 Gyr for Kawaler's example). The tests accept 30%, the accuracy Kawaler states for Mestel.
+
