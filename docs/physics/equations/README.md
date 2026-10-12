@@ -56,13 +56,13 @@ Anything typed from memory or taken from the brief without being opened is marke
 | Item | Needed for | Status |
 |---|---|---|
 | IAU 2015 B3 (T☉ = 5772 K, R☉) | Phase 1 | not opened |
-| CODATA G | Phase 3 | not opened |
+| CODATA G (and nominal (GM)☉, R☉) | Phase 3 | ✅ verified in Phase 3 |
 | HYG field list | Phase 2 | ✅ verified in Phase 2 |
-| Claret & Bloemen 2011 ReadMe | Phase 3 | not opened |
-| Sunspot ΔT | Phase 3 | unverified |
-| Granule-size factor for supergiants | Phase 3 | unverified |
-| Pulsation constant Q | Phase 3 | unverified |
-| Coronal brightness ratio | Phase 3 | unverified |
+| Claret & Bloemen 2011 ReadMe and table | Phase 3 | ✅ verified in Phase 3 |
+| Sunspot ΔT | Phase 3 | ✅ verified (Solanki 2003 via Murphy et al. 2026; Tiwari et al. 2015) |
+| Granule-size factor for supergiants | Phase 3 | ⚠️ partly: 4 H_p for dwarfs, 15 H_p for red giants verified; no supergiant-specific value |
+| Pulsation constant Q | Phase 3 | ✅ verified (Kiss, Szabó & Bedding 2006: 0.085 ± 0.02 d) |
+| Coronal brightness ratio | Phase 3 | ✅ verified (Arregui & Van Doorsselaere 2024: ~10⁻⁶) |
 | Novikov–Thorne / Page–Thorne | Phase 4 | not opened |
 | SN plateau photospheric T | Phase 5 | unverified |
 | PN line wavelengths (NIST) | Phase 5 | unverified |

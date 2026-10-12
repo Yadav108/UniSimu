@@ -88,3 +88,18 @@ $$t_{\rm dyn}=\sqrt{\frac{R^3}{GM}}$$
 The claim that the corona is about 10⁻⁶ of the disc's brightness comes from the brief and is **unverified** (find a solar-eclipse photometry reference).
 
 Physical mode draws no halo except the camera PSF. The bloom becomes one energy-conserving kernel: the kernel sums to 1, so total flux is unchanged. Label it as a camera artefact.
+
+## 7. Phase 3 verification (sources opened while implementing)
+- **Claret & Bloemen (2011), A&A 529, A75.** I opened the VizieR ReadMe (`https://cdsarc.cds.unistra.fr/ftp/J/A+A/529/A75/ReadMe`) and `tableab.dat`.
+  - The law is the quadratic I(μ)/I(1) = 1 − a(1−μ) − b(1−μ)².
+  - Coverage: T_eff 2000–50 000 K, log g 0–5, ATLAS and PHOENIX models, Johnson-Cousins and other passbands.
+  - Sample row: ATLAS, 5750 K, log g 4.5, Z = 0, ξ = 2, least-squares fit: B a = 0.6562, b = 0.1546; V 0.4650, 0.2565; R 0.3711, 0.2775. Blue limb-darkens more. **Verified.**
+- **G = 6.674 30(15) × 10⁻¹¹ m³ kg⁻¹ s⁻²** (NIST CODATA 2022). The code uses the IAU 2015 B3 nominal values (GM)☉ = 1.327 124 4 × 10²⁰ m³ s⁻² and R☉ = 6.957 × 10⁸ m (arXiv:1510.07674, opened), and m_u = 1.660 539 068 92 × 10⁻²⁷ kg (NIST). **Verified.**
+- **Sunspot temperatures.** Murphy et al. 2026 (KRONOS II, arXiv:2606.16782, opened) quote Solanki (2003): "umbrae and penumbrae have effective temperatures spanning T_umb = 3900–4800 K and T_pen = 5400–5500 K", against a 5772 K photosphere.
+  - Tiwari et al. (2015, arXiv:1508.04830, opened): the darkest umbrae reach 10 % of quiet-Sun intensity, and penumbrae 45–85 %.
+  - **Verified as quoted.** The Solanki review itself was not opened.
+- **Granulation contrast.** Magic et al. (2013) report a bolometric I_rms of 15 % for their solar model, rising with T_eff and falling log g. **Verified.**
+- **Surface convection on hot stars.** Cantiello & Braithwaite (2019, arXiv:1904.02161, opened) observe the "transition from convective to radiative surfaces … between 9,000 and 10,000 K". Surface H convection is largely inefficient above about 8250 K. **Verified**, and it replaces the unverified 7–8 kK above.
+- **Pulsation constant.** Kiss, Szabó & Bedding (2006, arXiv:astro-ph/0608438, opened) define Q = P (M/M☉)^{1/2} (R/R☉)^{−3/2}. For red supergiants the mean fundamental-mode Q is **0.085 ± 0.02 d**. **Verified.**
+- **Corona.** Arregui & Van Doorsselaere (2024, arXiv:2409.13318, opened): the white-light corona's intensity "near the edge of the solar disc … is about a million times fainter than the white-light coming from the disc". **Verified.**
+- **Supergiant granule size remains open.** With 15 H_p (Mathur et al. 2011's red giants), the Betelgeuse model has about 83 granules around its circumference. Interferometry shows only a few giant cells; those are set by the deep envelope, not H_p. No supergiant-specific factor was found, so this stays a documented limitation.
