@@ -37,6 +37,16 @@ class StarScene(rx.NoSSRComponent):
     surface_luminance: rx.Var[float]
     render_mode: rx.Var[str]
     exposure_mode: rx.Var[str]
+    # Optional (realism Phase 3): surface physics for physical mode.
+    limb_darkening: rx.Var[list[float]]
+    granulation_cells: rx.Var[float]
+    granulation_amplitude: rx.Var[float]
+    temperature_sensitivity: rx.Var[list[float]]
+    spot_contrast: rx.Var[list[float]]
+    pulsation_period_days: rx.Var[float]
+    glare: rx.Var[bool]
+    coronagraph: rx.Var[bool]
+    convection: rx.Var[float]
 
 
 star_scene = StarScene.create
