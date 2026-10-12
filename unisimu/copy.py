@@ -4,6 +4,7 @@ separate from physics/state logic since this is pure UI copy."""
 STAGE_LABELS: dict[str, str] = {
     "protostar": "Protostar",
     "main_sequence": "Main Sequence",
+    "blue_dwarf": "Blue Dwarf",
     "red_giant": "Red Giant",
     "red_supergiant": "Red Supergiant",
     "supernova": "Supernova",
@@ -41,6 +42,9 @@ STAGE_CAPTIONS: dict[str, str] = {
     "supernova": "The core collapses in under a second and rebounds in a "
     "supernova. About a day later the shock bursts through the surface, and "
     "for months the star shines like nearly a billion suns.",
+    "blue_dwarf": "Too small to swell into a giant, the red dwarf shrinks and "
+    "heats up into a blue dwarf. No star has done this yet: the universe is "
+    "far too young.",
     "planetary_nebula": "The star sheds its outer layers into space, "
     "exposing its hot, dense core.",
     "white_dwarf": "With no fuel left to fuse, the exposed core settles "
