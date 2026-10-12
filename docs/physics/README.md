@@ -10,14 +10,15 @@ The cited equations behind every phase are in [`equations/`](equations/README.md
 | 1: Radiometry and colour | `realism/phase-1-radiometry` | ✅ Complete (visual check partial, see below) | [01-radiometry.md](01-radiometry.md) |
 | 2: Starfield (HYG v4.2, CC BY-SA 4.0) | `realism/phase-2-starfield` | ✅ Complete (browser check pending) | [02-starfield.md](02-starfield.md) |
 | 3: Stellar surface | `realism/phase-3-surface` | ✅ Complete (browser check pending) | [03-surface.md](03-surface.md) |
-| 6: Time honesty | — | ⏳ Next | — |
-| 5: Death scenes | — | Planned | — |
+| 6: Time honesty | `realism/phase-6-time` | ✅ Complete (browser check pending) | [06-time.md](06-time.md) |
+| 5: Death scenes | — | ⏳ Next | — |
 | 4: Black hole | — | Planned | — |
 | 7: MIST tracks (optional) | — | Planned | — |
 
 The order 1 → 2 → 3 → 6 → 5 → 4 → (7) is deliberate: the death scenes need the supernova day clock from Phase 6.
 
 ## Open items carried forward
+- **Phase 6 browser check:** the Time rows read `1 s = 500 Myr` on the Sun's main sequence and `1 s = 200 yr` at its planetary nebula (06-time.md).
 - **Phase 3 browser check:** the hand checklist in 03-surface.md (limb darkening, granule sizes, coronagraph, glare, pulsation readout).
 - **Phase 2 browser check:** steady (non-twinkling) catalogue stars, Orion and Sirius in the right places, a visible glow band, and the credit in Legend & Help. Use the hand checklist in 02-starfield.md.
 - **Phase 1 visual check:** physical/fixed is captured for Proxima and the Sun only. Still to do:
