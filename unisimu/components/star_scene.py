@@ -47,6 +47,9 @@ class StarScene(rx.NoSSRComponent):
     glare: rx.Var[bool]
     coronagraph: rx.Var[bool]
     convection: rx.Var[float]
+    # Optional (realism Phase 5): death scenes.
+    nebula_color: rx.Var[list[float]]
+    illustrative_effects: rx.Var[bool]
 
 
 star_scene = StarScene.create

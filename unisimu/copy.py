@@ -39,7 +39,8 @@ STAGE_CAPTIONS: dict[str, str] = {
     "red_supergiant": "The core runs out of hydrogen. Fusion moves to a "
     "shell around it, and the outer layers swell into a red supergiant.",
     "supernova": "The core collapses in under a second and rebounds in a "
-    "supernova -- briefly outshining its entire host galaxy.",
+    "supernova. About a day later the shock bursts through the surface, and "
+    "for months the star shines like nearly a billion suns.",
     "planetary_nebula": "The star sheds its outer layers into space, "
     "exposing its hot, dense core.",
     "white_dwarf": "With no fuel left to fuse, the exposed core settles "

@@ -56,6 +56,9 @@ class SimState(rx.State):
     # exposure so the corona -- ~10^6 times fainter than the disc -- shows.
     glare: bool = True
     coronagraph: bool = False
+    # Physical mode only: show the keyframed blast, pulsar beams and remnant
+    # shells, labelled as illustration (realism Phase 5).
+    illustrative_effects: bool = False
 
     # simulated age in years, derived each tick from the cinematic clock
     # (`_screen_seconds`, below) -- see physics.stellar.cinematic_age_years
@@ -119,6 +122,10 @@ class SimState(rx.State):
     @rx.event
     def set_coronagraph(self, value: bool):
         self.coronagraph = bool(value)
+
+    @rx.event
+    def set_illustrative_effects(self, value: bool):
+        self.illustrative_effects = bool(value)
 
     @rx.event
     def set_exposure_mode(self, value: str | list[str]):

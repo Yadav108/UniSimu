@@ -63,5 +63,5 @@ def test_suns_main_sequence_runs_at_half_a_billion_years_per_second():
 
 def test_compression_spans_many_orders_of_magnitude_for_a_red_dwarf():
     slowest, fastest = compression_range(0.12)
-    assert slowest == pytest.approx(stellar.TERMINAL_FLASH_YEARS / stellar.SCREEN_SECONDS_TERMINAL_FLASH)
-    assert fastest / slowest > 1e8
+    assert slowest == pytest.approx(stellar.terminal_flash_years(0.12) / stellar.SCREEN_SECONDS_TERMINAL_FLASH)
+    assert fastest / slowest > 1e7

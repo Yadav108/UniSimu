@@ -5,6 +5,7 @@ aesthetic and minimalist design)."""
 import reflex as rx
 
 from unisimu.components.star_scene import star_scene
+from unisimu.physics.death import emission_line_color
 from unisimu.state import SimState
 from unisimu.theme import MONO, SERIF
 
@@ -72,6 +73,9 @@ def viewport() -> rx.Component:
             glare=SimState.glare,
             coronagraph=SimState.coronagraph,
             convection=SimState.convection_visibility,
+            # planetary-nebula emission-line colour: a constant of the physics
+            nebula_color=list(emission_line_color()),
+            illustrative_effects=SimState.illustrative_effects,
         ),
         _caption_overlay(),
         position="relative",

@@ -21,6 +21,7 @@ simulated age with a fixed on-screen duration per phase instead.
 import math
 from dataclasses import dataclass
 
+from unisimu.physics import death
 from unisimu.physics.blackbody import kelvin_to_hex
 
 SUN_TEMPERATURE_K = 5778.0
@@ -29,7 +30,11 @@ SCHWARZSCHILD_KM_PER_MSUN = 2.953
 
 FORMATION_YEARS = 5.0e4
 POST_MS_FRACTION = 0.10
-TERMINAL_FLASH_YEARS = 2.0e3
+# The last timed phase lasts as long as it really does (realism Phase 5): a
+# Type II-P supernova's light curve is shown over its first 400 days; a
+# planetary nebula stays visible for ~21 kyr (Jacob et al. 2013).
+SUPERNOVA_YEARS = death.SUPERNOVA_LIGHT_CURVE_DAYS / death.DAYS_PER_YEAR
+PLANETARY_NEBULA_YEARS = death.PLANETARY_NEBULA_VISIBLE_YEARS
 
 SUPERGIANT_MASS_THRESHOLD = 8.0
 BLACK_HOLE_MASS_THRESHOLD = 20.0
@@ -50,15 +55,10 @@ PLANETARY_NEBULA_FADE_FRACTION = 0.01
 WHITE_DWARF_TEMPERATURE_K = 25000.0
 WHITE_DWARF_RADIUS_RSUN = 0.012
 
-# Supernova light curve: fast shock-breakout rise, then a decay while the
-# photosphere cools from ~60,000 K to ~6,000 K.
-SUPERNOVA_PEAK_LUMINOSITY_LSUN = 3.0e9
-SUPERNOVA_RISE_FRACTION = 0.07
-SUPERNOVA_PEAK_TEMPERATURE_K = 6.0e4
-SUPERNOVA_LATE_TEMPERATURE_K = 6000.0
-SUPERNOVA_DECAY_RATE = 5.0
+# The supernova light curve lives in physics/death.py (Type II-P model).
 
-NEUTRON_STAR_RADIUS_RSUN = 1.7e-5  # ~12 km
+# 9.9-11.2 km for a dozen measured neutron stars (Ozel & Freire 2016); midpoint.
+NEUTRON_STAR_RADIUS_RSUN = 10.55 / SUN_RADIUS_KM
 NEUTRON_STAR_TEMPERATURE_K = 1.0e6
 BLACK_HOLE_MASS_FRACTION = 0.35  # remnant mass as a fraction of the progenitor's
 
@@ -181,20 +181,10 @@ def _red_giant_tip_luminosity(ms_luminosity: float) -> float:
     return ms_luminosity * brightening
 
 
-def _supernova_light_curve(frac: float, pre_luminosity: float) -> tuple[float, float]:
-    """(luminosity, temperature) `frac` (0..1) of the way through the
-    supernova, starting continuously from the progenitor's own state."""
-    if frac < SUPERNOVA_RISE_FRACTION:
-        x = frac / SUPERNOVA_RISE_FRACTION
-        return (
-            _geometric(pre_luminosity, SUPERNOVA_PEAK_LUMINOSITY_LSUN, x),
-            _geometric(RED_SUPERGIANT_TEMPERATURE_K, SUPERNOVA_PEAK_TEMPERATURE_K, x),
-        )
-    x = (frac - SUPERNOVA_RISE_FRACTION) / (1 - SUPERNOVA_RISE_FRACTION)
-    return (
-        SUPERNOVA_PEAK_LUMINOSITY_LSUN * math.exp(-SUPERNOVA_DECAY_RATE * x),
-        _geometric(SUPERNOVA_PEAK_TEMPERATURE_K, SUPERNOVA_LATE_TEMPERATURE_K, x),
-    )
+def terminal_flash_years(mass_msun: float) -> float:
+    """Real duration of the last timed phase: the supernova's shown light
+    curve for massive stars, the planetary nebula's visible life otherwise."""
+    return SUPERNOVA_YEARS if mass_msun >= SUPERGIANT_MASS_THRESHOLD else PLANETARY_NEBULA_YEARS
 
 
 def _black_hole_snapshot(mass_msun: float) -> StellarSnapshot:
@@ -263,10 +253,11 @@ def evolve(mass_msun: float, age_years: float) -> StellarSnapshot:
 
     # --- Terminal stages ---
     if is_massive:
-        if age_terminal < TERMINAL_FLASH_YEARS:
-            frac = age_terminal / TERMINAL_FLASH_YEARS
-            luminosity, temperature = _supernova_light_curve(
-                frac, ms_luminosity * RED_SUPERGIANT_BRIGHTENING
+        if age_terminal < SUPERNOVA_YEARS:
+            t_days = age_terminal * death.DAYS_PER_YEAR
+            frac = t_days / death.SUPERNOVA_LIGHT_CURVE_DAYS
+            luminosity, temperature = death.supernova_state(
+                t_days, ms_luminosity * RED_SUPERGIANT_BRIGHTENING, RED_SUPERGIANT_TEMPERATURE_K
             )
             radius = radius_from_luminosity_temperature(luminosity, temperature)
             return StellarSnapshot("supernova", radius, temperature, luminosity,
@@ -275,8 +266,8 @@ def evolve(mass_msun: float, age_years: float) -> StellarSnapshot:
             return _black_hole_snapshot(m)
         return _neutron_star_snapshot()
 
-    if age_terminal < TERMINAL_FLASH_YEARS:
-        frac = age_terminal / TERMINAL_FLASH_YEARS
+    if age_terminal < PLANETARY_NEBULA_YEARS:
+        frac = age_terminal / PLANETARY_NEBULA_YEARS
         tip = _red_giant_tip_luminosity(ms_luminosity)
         luminosity = tip * (1 - (1 - PLANETARY_NEBULA_FADE_FRACTION) * _smoothstep(frac, 0.6, 1.0))
         temperature = _geometric(RED_GIANT_TIP_TEMPERATURE_K, PLANETARY_NEBULA_CORE_TEMPERATURE_K, frac)
@@ -298,7 +289,7 @@ def phase_schedule(mass_msun: float) -> tuple[tuple[float, float, float], ...]:
     ms_start = FORMATION_YEARS
     post_ms_start = ms_start + ms_lifetime
     terminal_start = post_ms_start + ms_lifetime * POST_MS_FRACTION
-    remnant_start = terminal_start + TERMINAL_FLASH_YEARS
+    remnant_start = terminal_start + terminal_flash_years(mass_msun)
     return (
         (0.0, ms_start, SCREEN_SECONDS_PROTOSTAR),
         (ms_start, post_ms_start, SCREEN_SECONDS_MAIN_SEQUENCE),
@@ -346,12 +337,14 @@ def evolution_track(mass_msun: float, arc_samples: int = 26) -> list[StellarSnap
     ms_start = FORMATION_YEARS
     post_ms_start = ms_start + ms_lifetime
     terminal_start = post_ms_start + post_ms_duration
-    remnant_start = terminal_start + TERMINAL_FLASH_YEARS
+    remnant_start = terminal_start + terminal_flash_years(mass_msun)
     # evolve()'s terminal branch uses a strict `<`, so an arc sampled all
     # the way to remnant_start would land ON the remnant for its last
     # point -- stop just short so the flash's own end (frac ~= 1) is what
     # gets sampled, and the remnant stays a single, distinct final point.
-    terminal_end = terminal_start + TERMINAL_FLASH_YEARS * (1 - 1e-9)
+    # The margin is relative to the phase, and must stay above float
+    # resolution at the star's age: a 1.1-yr supernova at ~10^7 yr needs 1e-6.
+    terminal_end = terminal_start + terminal_flash_years(mass_msun) * (1 - 1e-6)
 
     def arc(start: float, end: float) -> list[float]:
         return [start + (end - start) * i / (arc_samples - 1) for i in range(arc_samples)]

@@ -120,7 +120,7 @@ def telemetry_readout() -> rx.Component:
         ),
         rx.text(
             "Each stage gets its own fixed screen time, so the clock speeds up and slows down by "
-            "factors of up to a hundred million. Motion on screen -- spin, pulsation, drifting "
+            "factors of up to ten million. Motion on screen -- spin, pulsation, drifting "
             "spots, expanding gas -- is on a cinematic clock, not real time.",
             size="1",
             color_scheme="gray",

@@ -1027,6 +1027,7 @@ function mountStarScene(container) {
   };
 
   const tmpColor = new THREE.Color();
+  const nebulaLineColor = new THREE.Color();
   const tmpVec = new THREE.Vector3();
   const tmpVec2 = new THREE.Vector3();
   const tmpQuat = new THREE.Quaternion();
@@ -1141,11 +1142,22 @@ function mountStarScene(container) {
       }
     }
 
-    // The supernova drives its own size directly (it must be crisp, and
-    // its timing is what the shockwave and flash are synced to); every other
-    // stage eases toward its target.
-    displayRadius = isSupernova ? targetRadius : damp(displayRadius, targetRadius, 2.5, delta);
-    bodyIntensity = isSupernova ? targetIntensity : damp(bodyIntensity, targetIntensity, 3, delta);
+    // Physical death scenes (realism Phase 5): the supernova body is its
+    // photosphere, sized from the light curve's L and T (Python); a neutron
+    // star keeps its true, tiny scale. Blast choreography, pulsar beams and
+    // remnant shells only show as labelled illustration.
+    const illustrative = !physical || latest.illustrativeEffects === true;
+    if (physical) {
+      if (isSupernova || isNeutronStar) targetRadius = visualScale(latest.radius);
+      if (!illustrative) flashLevel = 0;
+    }
+
+    // The stylized supernova drives its own size directly (it must be crisp,
+    // and its timing is what the shockwave and flash are synced to); every
+    // other stage -- and the physical photosphere -- eases toward its target.
+    const keyframed = isSupernova && !physical;
+    displayRadius = keyframed ? targetRadius : damp(displayRadius, targetRadius, 2.5, delta);
+    bodyIntensity = keyframed ? targetIntensity : damp(bodyIntensity, targetIntensity, 3, delta);
 
     if (physical) tmpColor.setRGB(...latest.surfaceColor);
     else tmpColor.set(latest.color);
@@ -1238,7 +1250,7 @@ function mountStarScene(container) {
 
     // --- supernova blast --------------------------------------------------
     const blastP = isSupernova ? clamp((p - 0.05) / 0.95, 0, 1) : 0;
-    flash.visible = isSupernova && flashLevel > 0.005;
+    flash.visible = isSupernova && illustrative && flashLevel > 0.005;
     if (flash.visible) {
       flash.quaternion.copy(camera.quaternion);
       flash.scale.setScalar(2 + flashLevel * 7);
@@ -1246,32 +1258,37 @@ function mountStarScene(container) {
       flashMaterial.uniforms.uIntensity.value = flashLevel * 0.8;
     }
     const shockProgress = isSupernova ? clamp((p - 0.05) / 0.6, 0, 1) : 0;
-    shock.visible = isSupernova && p > 0.05 && shockProgress < 1;
+    shock.visible = isSupernova && illustrative && p > 0.05 && shockProgress < 1;
     if (shock.visible) {
       shock.scale.setScalar(0.5 + 7.0 * easeOutCubic(shockProgress));
       shockMaterial.uniforms.uOpacity.value = 0.9 * Math.pow(1 - shockProgress, 1.5);
     }
     ejecta.material.uniforms.uP.value = blastP;
-    ejecta.material.uniforms.uActive.value = isSupernova ? 1 : 0;
-    ejecta.points.visible = isSupernova;
+    ejecta.material.uniforms.uActive.value = isSupernova && illustrative ? 1 : 0;
+    ejecta.points.visible = isSupernova && illustrative;
 
     // --- lingering nebula ---------------------------------------------------
     let nebulaScaleTarget = gas.scale;
     let nebulaOpacityTarget = 0;
     let palette = null;
+    // Physical: the planetary nebula glows in its emission lines ([O III],
+    // H-alpha, [N II] -- colour computed in Python), not in a blackbody tint.
+    const lineColors = physical && Array.isArray(latest.nebulaColor);
+    if (lineColors) nebulaLineColor.setRGB(...latest.nebulaColor);
+    const planetaryPalette = lineColors ? [nebulaLineColor, nebulaLineColor] : PLANETARY_PALETTE;
     if (stage === "planetary_nebula") {
       nebulaScaleTarget = lerp(0.8, 5.0, easeOutCubic(p));
       nebulaOpacityTarget = 1.0 * smoothstep(p, 0.0, 0.2);
-      palette = PLANETARY_PALETTE;
+      palette = planetaryPalette;
     } else if (stage === "white_dwarf") {
       nebulaScaleTarget = Math.min(gas.scale + delta * 0.12 * motion, 5.5);
       nebulaOpacityTarget = 0.42;
-      palette = PLANETARY_PALETTE;
-    } else if (isSupernova) {
+      palette = planetaryPalette;
+    } else if (isSupernova && illustrative) {
       nebulaScaleTarget = lerp(0.5, 6.5, easeOutCubic(clamp((p - 0.05) / 0.9, 0, 1)));
       nebulaOpacityTarget = 0.9 * smoothstep(p, 0.15, 0.55);
       palette = SUPERNOVA_PALETTE;
-    } else if (isRemnantStage) {
+    } else if (isRemnantStage && illustrative) {
       nebulaScaleTarget = Math.min(gas.scale + delta * 0.1 * motion, 5.5);
       nebulaOpacityTarget = 0.4;
       palette = SUPERNOVA_PALETTE;
@@ -1300,7 +1317,8 @@ function mountStarScene(container) {
     jets.scale.setScalar(Math.max(displayRadius, 0.3) / 0.43);
     jetMaterial.uniforms.uOpacity.value = jetOpacity;
 
-    pulsarOpacity = damp(pulsarOpacity, isNeutronStar ? 1 : 0, 1.5, delta);
+    // The visible lighthouse beam is a radio phenomenon: illustration only.
+    pulsarOpacity = damp(pulsarOpacity, isNeutronStar && illustrative ? 1 : 0, 1.5, delta);
     pulsarSpin.visible = pulsarOpacity > 0.01;
     pulsarSpin.rotation.y = star.rotation.y;
     pulsarMaterial.uniforms.uOpacity.value = pulsarOpacity * 1.15;
@@ -1388,13 +1406,13 @@ function mountStarScene(container) {
 export function StarScene({
   radius, color, stage, luminosity, progress, surfaceColor, surfaceLuminance, renderMode, exposureMode,
   limbDarkening, granulationCells, granulationAmplitude, temperatureSensitivity, spotContrast,
-  pulsationPeriodDays, glare, coronagraph, convection,
+  pulsationPeriodDays, glare, coronagraph, convection, nebulaColor, illustrativeEffects,
 }) {
   if (mountedContainer) {
     mountedContainer._uniSimuLatest = {
       radius, color, stage, luminosity, progress, surfaceColor, surfaceLuminance, renderMode, exposureMode,
       limbDarkening, granulationCells, granulationAmplitude, temperatureSensitivity, spotContrast,
-      pulsationPeriodDays, glare, coronagraph, convection,
+      pulsationPeriodDays, glare, coronagraph, convection, nebulaColor, illustrativeEffects,
     };
   }
   return <div ref={mountStarScene} style={{ width: "100%", height: "100%" }} />;
