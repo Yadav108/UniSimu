@@ -67,7 +67,7 @@ The first run also caught two real problems:
 | `assets/star_scene.jsx` | Physical black hole: a sky cube map (sky objects on their own layer) and a lens sphere whose fragment shader ray-traces each pixel. The stylized horizon, fake lens and disc are hidden in physical mode. The quality tiers gained ray-march steps and cube size. **Stylized unchanged.** |
 | `state.py`, `star_scene.py`, `viewport.py`, `controls.py` | **Added** `bh_disk` (default off) and the "Black hole with a companion" switch; constant props `bh_params` and `bh_color_table`. |
 | `tools/build_starfield.py`, `assets/starfield.bin` | Glow smoothing fix (Phase 2 follow-up). |
-| `tests/test_relativity.py` | 14 new tests. |
+| `tests/test_relativity.py` | 15 new tests. |
 | `tests/visual/render_scenarios.py` | **New** shader and scene harness (output gitignored). |
 
 ## Known simplifications
@@ -92,7 +92,7 @@ The first run also caught two real problems:
 6. Optional: `venv/Scripts/python tests/visual/render_scenarios.py` with `reflex run` **stopped**. Expect 0 console errors and a shadow radius within a pixel of Synge's.
 
 ## Tests
-`pytest tests/ -q` gives **225 passed** (211 before this phase, plus 14 new):
+`pytest tests/ -q` gives **225 passed** (210 before this phase, plus 15 new):
 - the characteristic radii;
 - the traced shadow edge equals Synge's formula at 10, 30 and 100 M, and the edge ray's impact parameter equals b_c;
 - weak-field bending is 4M/b, and bending grows toward the photon sphere (past 90° near b_c);
