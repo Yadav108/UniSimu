@@ -11,13 +11,14 @@ The cited equations behind every phase are in [`equations/`](equations/README.md
 | 2: Starfield (HYG v4.2, CC BY-SA 4.0) | `realism/phase-2-starfield` | ✅ Complete (browser check pending) | [02-starfield.md](02-starfield.md) |
 | 3: Stellar surface | `realism/phase-3-surface` | ✅ Complete (browser check pending) | [03-surface.md](03-surface.md) |
 | 6: Time honesty | `realism/phase-6-time` | ✅ Complete (browser check pending) | [06-time.md](06-time.md) |
-| 5: Death scenes | — | ⏳ Next | — |
-| 4: Black hole | — | Planned | — |
+| 5: Death scenes | `realism/phase-5-death-scenes` | ✅ Complete (browser check pending) | [05-death-scenes.md](05-death-scenes.md) |
+| 4: Black hole | — | ⏳ Next | — |
 | 7: MIST tracks (optional) | — | Planned | — |
 
 The order 1 → 2 → 3 → 6 → 5 → 4 → (7) is deliberate: the death scenes need the supernova day clock from Phase 6.
 
 ## Open items carried forward
+- **Phase 5 browser check:** the supernova plateau reads `1 s = 40 d`, the green-cyan planetary nebula, the true-scale neutron star, and the Illustrative-effects switch (05-death-scenes.md).
 - **Phase 6 browser check:** the Time rows read `1 s = 500 Myr` on the Sun's main sequence and `1 s = 2.1 kyr` at its planetary nebula (06-time.md).
 - **Phase 3 browser check:** the hand checklist in 03-surface.md (limb darkening, granule sizes, coronagraph, glare, pulsation readout).
 - **Phase 2 browser check:** steady (non-twinkling) catalogue stars, Orion and Sirius in the right places, a visible glow band, and the credit in Legend & Help. Use the hand checklist in 02-starfield.md.

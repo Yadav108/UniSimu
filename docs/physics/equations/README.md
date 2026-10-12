@@ -64,9 +64,9 @@ Anything typed from memory or taken from the brief without being opened is marke
 | Pulsation constant Q | Phase 3 | ✅ verified (Kiss, Szabó & Bedding 2006: 0.085 ± 0.02 d) |
 | Coronal brightness ratio | Phase 3 | ✅ verified (Arregui & Van Doorsselaere 2024: ~10⁻⁶) |
 | Novikov–Thorne / Page–Thorne | Phase 4 | not opened |
-| SN plateau photospheric T | Phase 5 | unverified |
-| PN line wavelengths (NIST) | Phase 5 | unverified |
-| PN ionisation threshold | Phase 5 | unverified |
-| Neutron-star radius and temperature | Phase 5 | unverified |
+| SN plateau photospheric T | Phase 5 | ✅ verified (Dessart & Hillier 2011, Table 4: 5160–5400 K) |
+| PN line wavelengths | Phase 5 | ✅ verified (Phillips et al. 2010, NGC 7009 line table); NIST not opened |
+| PN ionisation threshold | Phase 5 | ⚠️ still unverified; not used (nebula onset stays a stylized ramp) |
+| Neutron-star radius and temperature | Phase 5 | ✅ radius 9.9–11.2 km (Özel & Freire 2016); ⚠️ 10⁶ K surface still unverified |
 | Nadyozhin 1994 original | Phase 5 | not opened |
 | LBA 1997 original | Phase 7 | not opened |

@@ -100,3 +100,28 @@ The brief's numbers (radius about 10–12 km, surface about 10⁶ K, visible bea
 In Phase 5, cite a review (e.g. Özel & Freire 2016, ARA&A, for radii) before relying on them.
 
 At 10⁶ K the Planck peak is in soft X-rays. The visible colour is the Rayleigh–Jeans tail, i.e. the 100 kK+ blue limit in doc 01's table, at a tiny surface area. The beam stays as a labelled, illustrative toggle.
+
+## D. Phase 5 verification (sources opened while implementing)
+- **Plateau photosphere (verified).** Dessart & Hillier (2011), arXiv:1008.3238, Tables 4–5. For model s15e12 (15 M☉, ⁵⁶Ni = 0.0866 M☉):
+  - **L_bol** goes from 7.94 × 10⁸ L☉ at 9.3 d, through 6.19 × 10⁸ at 51 d and 5.02 × 10⁸ at 90 d, down to 1.11 × 10⁸ at 143 d.
+  - **T_phot** falls from 10 661 K and holds at **5160–5400 K from about 50 to 100 d**.
+  - **R_phot** reaches 2.4–2.5 × 10¹⁵ cm on the plateau.
+  - The photosphere vanishes after 143 d, and the plateau luminosity then meets the decay curve.
+  - The code interpolates this table directly (`death.DESSART_S15E12`).
+- **Shock breakout (verified for its timing only).** It comes about a day after core bounce (Vartanyan et al. 2025). The flash itself, peak 3 × 10⁴ K and 2 × 10⁹ L☉ at day 1.2, is **illustrative**, with no source.
+- **Tail check (verified).** At 143 d the ⁵⁶Co tail for 0.0866 M☉ of ⁵⁶Ni gives 8.4 × 10⁷ L☉, against the table's 1.1 × 10⁸, consistent with the paper's statement that the two meet at about 140 d.
+- **Planetary-nebula lines (verified).** Phillips, Cuesta & Ramos-Larios (2010), arXiv:1008.4178, NGC 7009 envelope. Wavelengths and strengths relative to Hβ:
+
+  | Line | Wavelength (Å) | Strength (Hβ = 1) |
+  |---|---|---|
+  | Hβ | 4861.327 | 1 |
+  | [O III] | 4958.915 | 3.60 |
+  | [O III] | 5006.845 | 10.9 |
+  | Hα | 6562.804 | 2.79 |
+  | [N II] | 6583.467 | 0.126 |
+
+  The NIST database itself was not opened; these are the paper's laboratory wavelengths.
+- **Planetary-nebula size (verified).** At 42 km/s for 21 000 yr the radius is 0.902 pc, matching Jacob et al.'s 0.9 pc visibility radius.
+- **Neutron star (radius verified).** Özel & Freire (2016), arXiv:1603.02698: radii of a dozen neutron stars lie in **9.9–11.2 km**. The model now uses 10.55 km (it was 11.8 km). The 10⁶ K surface temperature is still **unverified**.
+- **Correction to section B1's assumption.** The brief said the shell starts glowing when the core passes ~30 kK. That threshold was **not found**, so the nebula's onset stays a stylized ramp.
+
