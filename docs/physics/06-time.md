@@ -5,7 +5,7 @@ Branch `realism/phase-6-time`. The bookkeeping is described in [`equations/06-ti
 ## Why it was needed
 A star's life spans an absurd range of timescales: a red dwarf burns hydrogen for about 10¹² years, and a supernova's light changes over days. The app plays every life in about 50 seconds. To do that, `phase_schedule()` gives each of the four phases a **fixed** screen time (6 s, 20 s, 14 s, 10 s) and maps the phase's real duration linearly onto it.
 
-That's a good cinematic choice, but it hides something important: **the clock rate jumps between phases.** Watching the Sun, one second on screen is 500 million years during the main sequence, then 200 years during the planetary-nebula flash. For Proxima the main sequence runs at 34 billion years per second, a factor of 10⁸ faster than its last phase. Before this phase the only readout was the age, so nothing told you that.
+That's a good cinematic choice, but it hides something important: **the clock rate jumps between phases.** Watching the Sun, one second on screen is 500 million years during the main sequence, then 200 years during the planetary-nebula flash. For Proxima the main sequence runs at 34 billion years per second, more than 10⁷ times faster than its last phase. Before this phase the only readout was the age, so nothing told you that.
 
 The animations have a similar problem. Spin, pulsation, drifting spots and expanding gas run on wall-clock seconds, so their speed means nothing physical.
 
@@ -18,7 +18,7 @@ The telemetry gains a **Time** section:
 |---|---|---|
 | In this stage | Real time since the current timed phase began, out of its real length | `5 Gyr of 10 Gyr` |
 | Clock rate | Real time per screen second, at the chosen playback speed | `1 s = 500 Myr` |
-| *(note)* | The clock speeds up and slows down by up to 10⁸, and on-screen motion is cinematic | — |
+| *(note)* | The clock speeds up and slows down by up to 10⁷, and on-screen motion is cinematic | — |
 
 Once the star reaches its remnant (white dwarf, neutron star or black hole), the simulation stops, so the rows read "remnant (clock stopped)" and "stopped".
 
@@ -33,9 +33,11 @@ Both read directly from `phase_schedule()`, so the readout can't disagree with w
 
 | Preset | Fastest phase (main sequence) | Slowest phase (terminal flash) | Ratio |
 |---|---|---|---|
-| Proxima (0.12 M☉) | 34.2 Gyr/s | 200 yr/s | 1.7 × 10⁸ |
-| Sun (1 M☉) | 500 Myr/s | 200 yr/s | 2.5 × 10⁶ |
-| Betelgeuse (16.5 M☉) | 301 kyr/s | 200 yr/s | 1.5 × 10³ |
+| Proxima (0.12 M☉) | 34.2 Gyr/s | 2.1 kyr/s (planetary nebula) | 1.6 × 10⁷ |
+| Sun (1 M☉) | 500 Myr/s | 2.1 kyr/s (planetary nebula) | 2.4 × 10⁵ |
+| Betelgeuse (16.5 M☉) | 301 kyr/s | 40 d/s (supernova) | 2.8 × 10⁶ |
+
+*(Updated in Phase 5: the terminal phase now lasts as long as it really does, 400 days for a supernova and 21 kyr for a planetary nebula, instead of a fixed 2000 years.)*
 
 ## What changed
 | File | Change |
@@ -55,7 +57,7 @@ No JS changes and no new dependencies.
 ## How to verify by hand
 1. Pick **The Sun** and press Play at 1×. During the main sequence, *Clock rate* should read `1 s = 500 Myr`, and *In this stage* should count up to `10 Gyr of 10 Gyr`.
 2. Switch to 16×: the rate becomes `1 s = 8 Gyr`.
-3. At the planetary nebula the rate drops to `1 s = 200 yr`, a 2.5-million-fold slowdown that was invisible before.
+3. At the planetary nebula the rate drops to `1 s = 2.1 kyr`, a 240 000-fold slowdown that was invisible before. (Phase 5 changed this from 200 yr.)
 4. Pick **Proxima**: its main sequence reads `1 s = 34.2 Gyr`.
 
 ## Tests
@@ -64,4 +66,4 @@ No JS changes and no new dependencies.
 - for all six presets, the stage clock matches `phase_schedule` mid-phase (elapsed time, duration, rate);
 - the clock stops at the remnant;
 - the Sun's main sequence runs at exactly 10 Gyr / 20 s;
-- a red dwarf's compression spans more than 10⁸.
+- a red dwarf's compression spans more than 10⁷ (10⁸ before Phase 5).

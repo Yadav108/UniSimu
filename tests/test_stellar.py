@@ -10,20 +10,19 @@ def stage_sequence(mass_msun: float, samples_per_segment: int = 50) -> list[str]
     """Sample evolve() across the star's full lifetime and return the
     de-duplicated, order-preserved sequence of stages it passes through.
 
-    Segment-lengths vary by orders of magnitude (a 2000-year supernova
-    flash vs. a multi-billion-year main sequence), so we sample densely
+    Segment-lengths vary by orders of magnitude (a ~1-year supernova
+    vs. a multi-billion-year main sequence), so we sample densely
     *within* each known phase boundary rather than uniformly across the
     whole span, or short phases get skipped entirely by the sampling grid.
+    The boundaries come from phase_schedule(), so they follow each fate's
+    own terminal-phase length (realism Phase 5).
     """
-    ms_lifetime = main_sequence_lifetime_years(mass_msun)
-    post_ms = ms_lifetime * stellar.POST_MS_FRACTION
+    schedule = stellar.phase_schedule(mass_msun)
+    terminal_start, remnant_start, _ = schedule[-1]
     breakpoints = [
         0.0,
-        stellar.FORMATION_YEARS,
-        stellar.FORMATION_YEARS + ms_lifetime,
-        stellar.FORMATION_YEARS + ms_lifetime + post_ms,
-        stellar.FORMATION_YEARS + ms_lifetime + post_ms + stellar.TERMINAL_FLASH_YEARS,
-        stellar.FORMATION_YEARS + ms_lifetime + post_ms + stellar.TERMINAL_FLASH_YEARS * 1.5,
+        *(end for _, end, _ in schedule),
+        remnant_start + (remnant_start - terminal_start) * 0.5,
     ]
     sequence: list[str] = []
     for start, end in zip(breakpoints, breakpoints[1:]):
@@ -195,7 +194,9 @@ def test_red_supergiants_actually_end_up_red(mass_msun):
 def test_supernova_starts_from_the_progenitors_state(mass_msun):
     start = stellar.phase_schedule(mass_msun)[3][0]
     before = evolve(mass_msun, start - 1.0)
-    first = evolve(mass_msun, start + 0.01)
+    # half a day after core collapse: before shock breakout (~1 d), nothing
+    # has reached the surface yet (realism Phase 5)
+    first = evolve(mass_msun, start + 0.5 / 365.25)
     assert first.stage == "supernova"
     assert math.isclose(first.temperature_k, before.temperature_k, rel_tol=0.02)
     assert math.isclose(first.luminosity_lsun, before.luminosity_lsun, rel_tol=0.02)

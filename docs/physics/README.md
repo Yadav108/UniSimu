@@ -18,7 +18,7 @@ The cited equations behind every phase are in [`equations/`](equations/README.md
 The order 1 → 2 → 3 → 6 → 5 → 4 → (7) is deliberate: the death scenes need the supernova day clock from Phase 6.
 
 ## Open items carried forward
-- **Phase 6 browser check:** the Time rows read `1 s = 500 Myr` on the Sun's main sequence and `1 s = 200 yr` at its planetary nebula (06-time.md).
+- **Phase 6 browser check:** the Time rows read `1 s = 500 Myr` on the Sun's main sequence and `1 s = 2.1 kyr` at its planetary nebula (06-time.md).
 - **Phase 3 browser check:** the hand checklist in 03-surface.md (limb darkening, granule sizes, coronagraph, glare, pulsation readout).
 - **Phase 2 browser check:** steady (non-twinkling) catalogue stars, Orion and Sirius in the right places, a visible glow band, and the credit in Legend & Help. Use the hand checklist in 02-starfield.md.
 - **Phase 1 visual check:** physical/fixed is captured for Proxima and the Sun only. Still to do:
