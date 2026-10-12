@@ -59,7 +59,7 @@ The play loop stops once a star becomes a remnant, and changing that loop is out
 | `unisimu/copy.py`, `components/timeline.py` | Blue-dwarf label and caption. |
 | `unisimu/state.py`, `components/telemetry.py` | **Added** `remnant_log_age`, `set_remnant_age` and the cooling slider. The remnant time readout now says how long since it formed. |
 | `.gitignore` | `data/mist/` and `data/mist_tracks.json`. |
-| Tests | `tests/test_remnants.py` (16), `tests/test_mist.py` (6, 1 skipped without data). My own Phase 6 timekeeping test was updated: Proxima's slowest phase is now its protostar. |
+| Tests | `tests/test_remnants.py` (17), `tests/test_mist.py` (6, 1 skipped without data). My own Phase 6 timekeeping test was updated: Proxima's slowest phase is now its protostar. |
 
 No existing (pre-realism) test needed changing: every red-giant test uses 0.3 M☉ or more.
 
