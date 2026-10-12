@@ -6,3 +6,4 @@ __pycache__/
 assets/external/
 docs/private/
 tests/visual/baseline/
+tests/visual/scenarios/
