@@ -69,4 +69,4 @@ Anything typed from memory or taken from the brief without being opened is marke
 | PN ionisation threshold | Phase 5 | ⚠️ still unverified; not used (nebula onset stays a stylized ramp) |
 | Neutron-star radius and temperature | Phase 5 | ✅ radius 9.9–11.2 km (Özel & Freire 2016); ⚠️ 10⁶ K surface still unverified |
 | Nadyozhin 1994 original | Phase 5 | not opened |
-| LBA 1997 original | Phase 7 | not opened |
+| LBA 1997 original | Phase 7 | ✅ opened (IOP full text): 0.10 M☉ peaks at 5807 K, ≤ ~1 % L☉; 0.25 M☉ is the lowest-mass red giant |
