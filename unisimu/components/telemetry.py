@@ -105,6 +105,26 @@ def telemetry_readout() -> rx.Component:
             rx.fragment(),
         ),
         rx.progress(value=SimState.stage_progress_pct, width="100%"),
+        rx.heading("Time", size="3", margin_top="0.5em"),
+        rx.hstack(
+            rx.text("In this stage", size="2", color_scheme="gray"),
+            rx.spacer(),
+            rx.text(SimState.stage_time_display, size="2", font_variant_numeric="tabular-nums"),
+            width="100%",
+        ),
+        rx.hstack(
+            rx.text("Clock rate", size="2", color_scheme="gray"),
+            rx.spacer(),
+            rx.text(SimState.clock_rate_display, size="2", font_variant_numeric="tabular-nums"),
+            width="100%",
+        ),
+        rx.text(
+            "Each stage gets its own fixed screen time, so the clock speeds up and slows down by "
+            "factors of up to a hundred million. Motion on screen -- spin, pulsation, drifting "
+            "spots, expanding gas -- is on a cinematic clock, not real time.",
+            size="1",
+            color_scheme="gray",
+        ),
         spacing="2",
         align="start",
         width="100%",

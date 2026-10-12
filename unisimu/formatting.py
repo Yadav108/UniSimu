@@ -19,3 +19,22 @@ def format_scientific(value: float, plain_lo: float = 1e-3, plain_hi: float = 1e
     exponent = math.floor(math.log10(magnitude))
     mantissa = value / 10**exponent
     return f"{mantissa:.1f}×10{str(exponent).translate(SUPERSCRIPT)}"
+
+
+DAYS_PER_YEAR = 365.25  # Julian year
+
+
+def format_duration(years: float) -> str:
+    """A span of time in the most readable unit: days below a year, then
+    yr / kyr / Myr / Gyr, and scientific notation in Gyr beyond 10^5 Gyr."""
+    if years < 0:
+        raise ValueError("a duration cannot be negative")
+    if years < 1:
+        return f"{years * DAYS_PER_YEAR:,.0f} d"
+    for unit, scale in (("Gyr", 1e9), ("Myr", 1e6), ("kyr", 1e3)):
+        if years >= scale:
+            value = years / scale
+            if value >= 1e5:
+                return f"{format_scientific(value)} {unit}"
+            return f"{value:,.3g} {unit}" if value < 1000 else f"{value:,.0f} {unit}"
+    return f"{years:,.3g} yr" if years < 100 else f"{years:,.0f} yr"
