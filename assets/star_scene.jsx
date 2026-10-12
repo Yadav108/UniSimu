@@ -132,7 +132,7 @@ const STAR_SPRITE_PX = 7; // sprite covering about +-3.5 sigma
 // The baked glow only holds stars down to V = 9, but most of the Milky Way's
 // light comes from far fainter, unresolved stars. This factor stands in for
 // them so the band shows at all: an approximation, not a measurement.
-const GLOW_UNRESOLVED_BOOST = 150;
+const GLOW_UNRESOLVED_BOOST = 50;
 // Quality tiers: brightest-first subsets of the catalogue, stepped down (never
 // back up) when frames average slower than SLOW_FRAME_MS.
 // The black-hole lens adds a per-pixel ray-march (steps) and a sky cube map.
@@ -146,6 +146,10 @@ const QUALITY_TIERS = [
 // the shadow ~0.05 deg too large -- under one screen pixel (see the note).
 const LENS_PHI_SPAN = 2.5 * Math.PI;
 const SKY_LAYER = 1; // objects the sky cube camera sees
+// Companion-disc scenario: auto exposure puts the disc's peak at this level,
+// below saturation, so its temperature falloff and Doppler asymmetry show.
+const DISK_AUTO_LEVEL = 0.35;
+const DISK_FRAME_MARGIN = 1.2; // frame the disc's outer edge with some room
 const SLOW_FRAME_MS = 25;
 
 // Stellar surface (physical mode). The physics -- limb-darkening coefficients,
@@ -1530,7 +1534,7 @@ function mountStarScene(container) {
       u.uRout.value = outerFactor * u.uM.value;
       u.uDiskOn.value = latest.bhDisk === true ? 1 : 0;
       u.uDiskPeakT.value = peakT;
-      u.uDiskScale.value = latest.exposureMode === "fixed" ? PHYSICAL_FIXED_EXPOSURE : 1 / peakLuminance;
+      u.uDiskScale.value = latest.exposureMode === "fixed" ? PHYSICAL_FIXED_EXPOSURE : DISK_AUTO_LEVEL / peakLuminance;
       u.uSteps.value = tier.rayMarchSteps;
       u.uDiskAxis.value.set(0, 0, 1).applyEuler(blackHoleDisk.rotation).normalize();
     } else {
@@ -1557,6 +1561,10 @@ function mountStarScene(container) {
     if (gas.opacity > 0.05 && !isRemnantStage) frame = Math.max(frame, gas.scale * 0.55);
     if (pulsarOpacity > 0.05) frame = Math.max(frame, 2.6);
     if (blackHoleOpacity > 0.05) frame = Math.max(frame, 2.5);
+    // physical companion disc: step back far enough to see its outer edge
+    if (bhLens.visible && latest.bhDisk === true) {
+      frame = Math.max(frame, DISK_FRAME_MARGIN * bhLensMaterial.uniforms.uRout.value);
+    }
     if (dustOpacity > 0.05) frame = Math.max(frame, displayRadius * 2.6);
     if (isSupernova) frame = Math.max(frame, 1.5 + 3.4 * easeOutCubic(clamp((p - 0.05) / 0.6, 0, 1)));
     autoDistance = clamp(3 + frame * 2.3, 2.6, 22);
